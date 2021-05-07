@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8" />
+<title>Unofficial Haiku&reg; test builds</title>
+<link rel="stylesheet" href="css/main.css" />
+</head><body>
+<h2>NOTICE</h2>
+Please keep in mind that:
+<ul>
+    <li>These are <strong>not official</strong> builds.</li>
+    <li>They are based off the live development branch.</li>
+    <li>They include untested changes on top of that.</li>
+</ul>
+<p>So using the images and packages provided here may eat your data, brick your device, set your house on fire, suck the soul of your firstborn or even worse. The Haiku&reg; team is not responsible for any of this. The compilation options are not the same used for official releases. Please don't open bugs in Haiku's tracker based solely on results from what you can get here.</p>
+
+<p>Compiler messages stats and breakdowns are not reliable: parts of messages from different threads may end in the same line, a warning may be treated as an error, some don't even state their type... The option to show only new messages from the changeset is also very crude: there's no attempt to detect renames, and a message is considered new if there were less messages of the same type for the same file in master, be they really the same or not.</p>
+
+<h2>Current revision</h2>
+<p>Last page update: <span id="lastupdate"></span></p>
+<table>
+    <caption>Status of latest used base release</caption>
+    <tbody>
+        <tr><th scope="row">Revision</th><td id="lastrevision"></td>
+        <tr><th scope="row">Subject</th><td id="lastsubject"></td>
+        <tr><th scope="row">Build status</th><td id="laststatus"></td>
+    </tbody>
+</table>
+
+<details><summary><h2>All revisions</h2></summary>
+<table>
+    <caption>Status of all used base releases</caption>
+    <thead><tr>
+        <th>Revision</th><th>Status</th><th>Subject</th>
+    </tr></thead>
+    <tbody id="allreleases"></tbody>
+</table>
+</details>
+
+<h2>Changesets</h2>
+<table>
+    <caption>Status of changesets</caption>
+    <thead><tr>
+        <th>&#x21bb;<span class="hide">Queue</span></th>
+        <th>Last queued</th><th>on</th>
+        <th>Status</th><th>Subject</th><th>tags</th>
+    </tr></thead>
+    <tbody id="changesets"></tbody>
+</table>
+
+<footer>
+Haiku® is a registered trademark of <a href="https://www.haiku-inc.org">Haiku, Inc.</a> and is developed by the <a href="https://www.haiku-os.org">Haiku Project</a>
+</footer>
+<script>const app = {};</script>
+<script src="js/dom.js"></script>
+<script src="js/util.js"></script>
+<script src="js/msgview.js"></script>
+<script src="js/summary.js"></script>
+<script>app.update();</script>
+</body></html>

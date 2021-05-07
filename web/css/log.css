@@ -1,0 +1,14 @@
+/*
+Error and warning logos by Rossana Valastro, IT, modified to add black and colour.
+https://thenounproject.com/rossvala/collection/circle-state/?i=84891
+https://thenounproject.com/rossvala/collection/circle-state/?i=84890
+*/
+.warning {
+	background: yellow url('../assets/warning.svg') no-repeat left/contain;
+	padding-left: 1.5em;
+}
+.error {
+	background: #f88 url('../assets/error.svg') no-repeat left/contain;
+	padding-left: 1.5em;
+}
+

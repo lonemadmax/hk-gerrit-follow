@@ -1,0 +1,110 @@
+html { font-family: sans-serif; background: #eee; color: #333; }
+body { margin: 0 auto; background: white; padding: 1rem 2rem; }
+p { max-width: 60rem; }
+a { color: #377ba8; }
+a:visited { color: #895b88; }
+a[href^=http]::after { content: ' ⭧';}
+h2 {
+    color: #377ba8;
+    margin: 2rem 0 1rem;
+    border-bottom: 1px solid lightgray;
+}
+
+table { border: double; border-collapse: separate; border-spacing: 0px;}
+th, td {
+    border-style: solid;
+    border-color: lightgray;
+    border-width: 0 1px 1px 0;
+    padding: 0.25rem;
+}
+th:not([scope=row]) { border-bottom: 2px solid black; background: white; }
+th[scope=row] { border-right: 2px solid black; }
+th.sort-0 { background-color: lightskyblue;}
+th.sort-1 { background-color: lightblue;}
+th.sort-2 { background-color: aliceblue;}
+th.sort-a::after { content: "⯆"; float: right;}
+th.sort-d::after { content: "⯅"; float: right;}
+thead {
+    position: sticky;
+    top: 0px;
+}
+tr:hover { background-color: lavender; }
+
+.hide { display: none; }
+caption, .visuallyhidden {
+    clip: rect(1px, 1px, 1px, 1px);
+    clip-path: inset(50%);
+    height: 1px;
+    width: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    position: absolute;
+}
+
+.vbox {
+    display: flex;
+    flex-flow: column nowrap;
+}
+
+.build-ok::before { content: '\2713'; color: green; }
+.build-fail::before { content: '\2717'; color: red; }
+.build-wait::before { content: '\21bb'; color: gray; }
+.build { display: inline; padding: 0 0.2rem; }
+
+summary > * { display: inline-block; }
+summary.build { list-style: none; }
+summary.build::marker { content: ''; }
+summary.build::-webkit-details-marker { display: none; }
+details > summary.build {
+    text-decoration: underline;
+    color: #377ba8;
+}
+details[open] > summary.build {
+    color: #895b88;
+    background: palegoldenrod;
+}
+details[open] > aside {
+    /*background: rgba(224, 224, 200, 0.9);*/
+    background: whitesmoke;
+    border-radius: 0 1rem 1rem;
+    box-shadow: 2px 2px 4px 1px #333;
+    position: absolute;
+    padding: 2rem;
+    z-index: 10;
+    box-sizing: border-box;
+}
+details[open] > aside.vbox { max-height: 85vh; }
+/*details[open] > aside pre {
+    white-space: pre-wrap;
+}*/
+aside th:not([scope=row]) { background: whitesmoke;}
+
+.cherry {
+    text-align: center;
+    margin-top: 0.8rem;
+    border-top: 1px dashed lightgray;
+}
+
+.age1 {background: #fee;}
+.age2 {background: #fdd;}
+.age3 {background: #fbb;}
+
+.pill { border-radius: 1em; padding: 0 0.5em; white-space: nowrap; }
+.pending-comments { background: red; color: white;}
+.wip { background: blue; color: white;}
+.CR-Rejected { background: red; color: white;}
+.CR-Disliked { background: pink; }
+.CR-Liked { background: lightgreen; }
+.CR-Approved { background: green; color: white;}
+
+footer {
+    margin: 1rem -2rem -1rem;
+    padding: 1rem 10px;
+    border-top: 1px solid gray;
+    background: lavender;
+    color: #555;
+    font-size: smaller;
+}
+

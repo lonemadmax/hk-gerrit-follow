@@ -1,0 +1,4 @@
+[DEFAULT]
+# Gerrit HTTP credentials
+user=
+password=
