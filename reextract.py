@@ -42,8 +42,9 @@ def clear_html_log(file):
                     out.write(unescape(RE_NOHTML.sub('', line)))
     return outname
 
-# TODO: keep modifications in sync with build.py:_process_build
-def _process_build(stdout, stderr, dst, title, linker, arch_data, parent_arch_data):
+# TODO: keep modifications in sync with builder.py:_process_build
+# TODO: legacy, remove when all logs use one file
+def _process_build2(stdout, stderr, dst, title, linker, arch_data, parent_arch_data):
     result = log_analysis.analyse(stderr, stdout)
     arch_data['message'] = result['failures']
     files = defaultdict(lambda: len(files))
@@ -105,10 +106,81 @@ def _process_build(stdout, stderr, dst, title, linker, arch_data, parent_arch_da
 
     line_msgs = gen_line_msgs(0)
     write_log(stdout, join(dst, 'buildlog-stdout.html'), 'build stdout',
-        log_analysis.html_stdout, line_msgs)
+        log_analysis.htmlout, line_msgs)
     line_msgs = gen_line_msgs(1)
     write_log(stderr, join(dst, 'buildlog-stderr.html'), 'build stderr',
-        log_analysis.html_stderr, line_msgs)
+        log_analysis.htmlout, line_msgs)
+
+    result['packages'] = list(result['packages'])
+
+    messages = [''] * (max(result['messages'].values()) + 1)
+    for k, v in result['messages'].items():
+        messages[v] = k
+    result['messages'] = messages
+
+    with open(join(dst, 'build-result.json'), 'wt') as f:
+        json.dump(result, f)
+
+# TODO: keep modifications in sync with builder.py:_process_build
+def _process_build1(stdout, dst, title, linker, arch_data, parent_arch_data):
+    result = log_analysis.analyse(stdout)
+    arch_data['message'] = result['failures']
+    files = defaultdict(lambda: len(files))
+    msg_refs = {'warnings': [[], []], 'errors': [[], []]}
+    for k in ('warnings', 'errors'):
+        arch_data[k] = sum(len(v) for v in result[k].values())
+        for msgs in result[k].values():
+            for i, v in enumerate(msgs):
+                f, lf, ls, msg = v
+                f = 'buildlog.html'
+                msg_refs[k][0].append(lf)
+                msgs[i] = (files[f], lf, ls, msg)
+    result['files'] = [''] * len(files.values())
+    for k, v in files.items():
+        result['files'][v] = k
+
+    title = escape(title, quote=True)
+    lead_items = ['<h1>', title, '</h1>\n<p>',
+        str(arch_data['warnings']), '', ' warnings<br>\n',
+        str(arch_data['errors']), '', ' errors</p>\n<pre>',
+        escape(arch_data['message']), '</pre>\n']
+    if parent_arch_data:
+        for t, i in (('warnings', 4), ('errors', 7)):
+            delta = arch_data[t] - parent_arch_data[t]
+            if delta:
+                lead_items[i] = ' (%+d)' % delta
+    lead = ''.join(lead_items)
+    css = paths.link_root() + '/css/log.css'
+
+    def write_log(src, dst, title2, body, line_msgs):
+        with open(src, 'rt') as fin:
+            with open(dst, 'wt') as fout:
+                fout.write('<!DOCTYPE html>\n<html><head>'
+                    '<meta charset="utf-8" />\n<title>')
+                fout.write(' '.join((title, title2)))
+                fout.write('</title>\n<link rel="stylesheet" href="')
+                fout.write(css)
+                fout.write('" />\n</head><body>\n')
+                fout.write(lead)
+                body(fin, fout, file_linker=linker, line_msgs=line_msgs)
+                fout.write('\n</body></html>')
+
+    def gen_line_msgs(outn):
+        m = 0
+        for k in ('warnings', 'errors'):
+            try:
+                m = max(max(msg_refs[k][outn]), m)
+            except ValueError:
+                pass
+        line_msgs = [0] * (m + 1)
+        for k, v in (('warnings', 1), ('errors', 2)):
+            for i in msg_refs[k][outn]:
+                line_msgs[i] = v
+        return line_msgs
+
+    line_msgs = gen_line_msgs(0)
+    write_log(stdout, join(dst, 'buildlog.html'), 'build',
+        log_analysis.htmlout, line_msgs)
 
     result['packages'] = list(result['packages'])
 
@@ -128,21 +200,29 @@ def process(basedir, result, parent, title, linker):
             resultfile = join(base, 'build-result.json')
             if exists(resultfile):
                 extract_bad(resultfile, badbefore)
-                stdout = join(base, 'buildlog-stdout.html')
-                newstdout = clear_html_log(stdout)
-                stderr = join(base, 'buildlog-stderr.html')
-                newstderr = clear_html_log(stderr)
                 parent_result = None
                 if parent:
                     try:
                         parent_result = parent['result'][arch]
                     except KeyError:
                         pass
-                _process_build(newstdout, newstderr, TMPDIR,
-                    title + ' [' + arch + ']', linker,
-                    result[arch], parent_result)
-                move(join(TMPDIR, 'buildlog-stdout.html'), stdout)
-                move(join(TMPDIR, 'buildlog-stderr.html'), stderr)
+                stdout = join(base, 'buildlog-stdout.html')
+                if exists(stdout):
+                    newstdout = clear_html_log(stdout)
+                    stderr = join(base, 'buildlog-stderr.html')
+                    newstderr = clear_html_log(stderr)
+                    _process_build2(newstdout, newstderr, TMPDIR,
+                        title + ' [' + arch + ']', linker,
+                        result[arch], parent_result)
+                    move(join(TMPDIR, 'buildlog-stdout.html'), stdout)
+                    move(join(TMPDIR, 'buildlog-stderr.html'), stderr)
+                else:
+                    stdout = join(base, 'buildlog.html')
+                    newstdout = clear_html_log(stdout)
+                    _process_build1(newstdout, TMPDIR,
+                        title + ' [' + arch + ']', linker,
+                        result[arch], parent_result)
+                    move(join(TMPDIR, 'buildlog.html'), stdout)
                 move(join(TMPDIR, 'build-result.json'), resultfile)
                 extract_bad(resultfile, badafter)
             elif not exists(join(basedir, 'conflicts.html')):

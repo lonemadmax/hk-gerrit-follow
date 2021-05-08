@@ -43,10 +43,8 @@ def jam(wd, target, options=None, quick=False, jam_cmd=None, output=None):
             output = os.path.join(wd, output)
     if output:
         out = open(output + '.out', mode='wb')
-        err = open(output + '.err', mode='wb')
     else:
         out, _ = tempfile.mkstemp(suffix='.out', prefix='jam', dir=wd)
-        err, _ = tempfile.mkstemp(suffix='.err', prefix='jam', dir=wd)
 
-    return subprocess.run(args, stdout=out, stderr=err, cwd=wd)
+    return subprocess.run(args, stdout=out, stderr=subprocess.STDOUT, cwd=wd)
 

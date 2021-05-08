@@ -90,10 +90,9 @@ def remove_emulated_attributes():
 # TODO: keep modifications in sync with reextract.py:_process_build
 def _process_build(src, dst, title, linker, parent, result, arch):
     stdout = join(src, 'build.out')
-    stderr = join(src, 'build.err')
     arch_data = result[arch]
 
-    result = log_analysis.analyse(stderr, stdout)
+    result = log_analysis.analyse(stdout)
     arch_data['message'] = result['failures']
     files = defaultdict(lambda: len(files))
     msg_refs = {'warnings': [[], []], 'errors': [[], []]}
@@ -102,12 +101,8 @@ def _process_build(src, dst, title, linker, parent, result, arch):
         for msgs in result[k].values():
             for i, v in enumerate(msgs):
                 f, lf, ls, msg = v
-                if f == stderr:
-                    f = 'buildlog-stderr.html'
-                    msg_refs[k][1].append(lf)
-                elif f == stdout:
-                    f = 'buildlog-stdout.html'
-                    msg_refs[k][0].append(lf)
+                f = 'buildlog.html'
+                msg_refs[k][0].append(lf)
                 msgs[i] = (files[f], lf, ls, msg)
     result['files'] = [''] * len(files.values())
     for k, v in files.items():
@@ -155,11 +150,8 @@ def _process_build(src, dst, title, linker, parent, result, arch):
         return line_msgs
 
     line_msgs = gen_line_msgs(0)
-    write_log(stdout, join(dst, 'buildlog-stdout.html'), 'build stdout',
-        log_analysis.html_stdout, line_msgs)
-    line_msgs = gen_line_msgs(1)
-    write_log(stderr, join(dst, 'buildlog-stderr.html'), 'build stderr',
-        log_analysis.html_stderr, line_msgs)
+    write_log(stdout, join(dst, 'buildlog.html'), 'build',
+        log_analysis.htmlout, line_msgs)
 
     pkgs = set(result['packages'])
     obj_dir = join(src, 'objects', 'haiku')

@@ -8,8 +8,7 @@ import re
 import paths
 
 
-__all__ = ('analyse', 'html_stdout', 'html_stderr',
-    'file_link_release', 'file_link_change')
+__all__ = ('analyse', 'htmlout', 'file_link_release', 'file_link_change')
 
 
 
@@ -346,7 +345,7 @@ def file_link_change(change_number, change_version):
     return linker
 
 
-def html_stderr(fin, fout, anchor_prefix='n', lineno=1, file_linker=None,
+def htmlout(fin, fout, anchor_prefix='n', lineno=1, file_linker=None,
         line_msgs=None):
     msg_name = [None, 'warning', 'error']
     msg_class = None
@@ -362,7 +361,12 @@ def html_stderr(fin, fout, anchor_prefix='n', lineno=1, file_linker=None,
     fout.write('\n<pre><ol class="log">')
     for line in path_transformer(fin):
         line = html.escape(line, quote=True)
-        line = RE_URL.sub(r'<a href="\g<0>">\g<0></a>', line)
+        if line.endswith('.hpkg: Creating the package ...'):
+            pkg = line[:-len(': Creating the package ...')]
+            line = ('<a href="' + pkg + '" class="pkg">' + pkg + '</a>'
+                + ': Creating the package ...')
+        else:
+            line = RE_URL.sub(r'<a href="\g<0>">\g<0></a>', line)
         if line_msgs:
             try:
                 msg_class = msg_name[line_msgs[lineno]]
@@ -376,35 +380,6 @@ def html_stderr(fin, fout, anchor_prefix='n', lineno=1, file_linker=None,
                 msg_class = None
         if file_linker:
             line = RE_SRCFILE.sub(repl_file, line)
-        if msg_class:
-            fout.write(''.join(('\n<li><samp id="', anchor_prefix, str(lineno),
-                '" class="', msg_class, '">', line, '</samp>')))
-        else:
-            fout.write(''.join(('\n<li><samp id="', anchor_prefix, str(lineno),
-                '">', line, '</samp>')))
-        lineno += 1
-    fout.write('\n</ol></pre>')
-
-
-def html_stdout(fin, fout, anchor_prefix='n', lineno=1, file_linker=None,
-        line_msgs=None):
-    msg_name = [None, 'warning', 'error']
-    msg_class = None
-    fout.write('\n<pre><ol class="log">')
-    for line in path_transformer(fin):
-        line = html.escape(line, quote=True)
-        if line.endswith('.hpkg: Creating the package ...'):
-            pkg = line[:-len(': Creating the package ...')]
-            line = ('<a href="' + pkg + '" class="pkg">' + pkg + '</a>'
-                + ': Creating the package ...')
-        else:
-            line = RE_URL.sub(r'<a href="\g<0>">\g<0></a>', line)
-        if line_msgs:
-            try:
-                msg_class = msg_name[line_msgs[lineno]]
-            except IndexError:
-                line_msgs = None
-                msg_class = None
         if msg_class:
             fout.write(''.join(('\n<li><samp id="', anchor_prefix, str(lineno),
                 '" class="', msg_class, '">', line, '</samp>')))
