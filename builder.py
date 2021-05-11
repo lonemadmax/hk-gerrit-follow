@@ -74,13 +74,18 @@ def build(arch, tag):
 
     if not exists(join(path, 'build', 'BuildConfig')):
         configure_build(path, arch)
-    res = jam(path, '@nightly-anyboot', options=(
+    res, fname = jam(path, '@nightly-anyboot', options=(
             '-sHAIKU_REVISION='+tag,
             '-sHAIKU_BUILD_ATTRIBUTES_DIR='+paths.emulated_attributes(),
             '-sHAIKU_IMAGE_SIZE=900'),
-        jam_cmd=paths.jam(), output=join(path, 'build'))
+        jam_cmd=paths.jam(), output=join(path, 'build.out'))
     remove_emulated_attributes()
-    return res.returncode == 0
+    with open(fname, 'rt') as logf:
+        log = logf.read().split('\n')
+    PT = log_analysis.PathTransformer()
+    for i, s in enumerate(PT.transform(log)):
+        log[i] = s
+    return res.returncode == 0, log
 
 
 def remove_emulated_attributes():
@@ -88,11 +93,10 @@ def remove_emulated_attributes():
 
 
 # TODO: keep modifications in sync with reextract.py:_process_build
-def _process_build(src, dst, title, linker, parent, result, arch):
-    stdout = join(src, 'build.out')
+def _process_build(src, dst, log, title, linker, parent, result, arch):
     arch_data = result[arch]
 
-    result = log_analysis.analyse(stdout)
+    result = log_analysis.analyse(log)
     arch_data['message'] = result['failures']
     files = defaultdict(lambda: len(files))
     msg_refs = {'warnings': [[], []], 'errors': [[], []]}
@@ -100,7 +104,7 @@ def _process_build(src, dst, title, linker, parent, result, arch):
         arch_data[k] = sum(len(v) for v in result[k].values())
         for msgs in result[k].values():
             for i, v in enumerate(msgs):
-                f, lf, ls, msg = v
+                lf, ls, msg = v
                 f = 'buildlog.html'
                 msg_refs[k][0].append(lf)
                 msgs[i] = (files[f], lf, ls, msg)
@@ -123,18 +127,17 @@ def _process_build(src, dst, title, linker, parent, result, arch):
     lead = ''.join(lead_items)
     css = paths.link_root() + '/css/log.css'
 
-    def write_log(src, dst, title2, body, line_msgs):
-        with open(src, 'rt') as fin:
-            with open(dst, 'wt') as fout:
-                fout.write('<!DOCTYPE html>\n<html><head>'
-                    '<meta charset="utf-8" />\n<title>')
-                fout.write(' '.join((title, title2)))
-                fout.write('</title>\n<link rel="stylesheet" href="')
-                fout.write(css)
-                fout.write('" />\n</head><body>\n')
-                fout.write(lead)
-                body(fin, fout, file_linker=linker, line_msgs=line_msgs)
-                fout.write('\n</body></html>')
+    def write_log(log, dst, title2, body, line_msgs):
+        with open(dst, 'wt') as fout:
+            fout.write('<!DOCTYPE html>\n<html><head>'
+                '<meta charset="utf-8" />\n<title>')
+            fout.write(' '.join((title, title2)))
+            fout.write('</title>\n<link rel="stylesheet" href="')
+            fout.write(css)
+            fout.write('" />\n</head><body>\n')
+            fout.write(lead)
+            body(log, fout, file_linker=linker, line_msgs=line_msgs)
+            fout.write('\n</body></html>')
 
     def gen_line_msgs(outn):
         m = 0
@@ -150,7 +153,7 @@ def _process_build(src, dst, title, linker, parent, result, arch):
         return line_msgs
 
     line_msgs = gen_line_msgs(0)
-    write_log(stdout, join(dst, 'buildlog.html'), 'build',
+    write_log(log, join(dst, 'buildlog.html'), 'build',
         log_analysis.htmlout, line_msgs)
 
     pkgs = set(result['packages'])
@@ -240,10 +243,10 @@ def build_release():
 
     for arch in ARCHES:
         if data_master['result'][arch]['ok'] is None:
-            data_master['result'][arch]['ok'] = build(arch, tag)
+            data_master['result'][arch]['ok'], log = build(arch, tag)
             build_dst = paths.www('release', 'master', tag, arch)
             os.makedirs(build_dst, exist_ok=True)
-            _process_build(paths.build(arch), build_dst,
+            _process_build(paths.build(arch), build_dst, log,
                 'master: ' + tag + ' [' + arch + ']',
                 log_analysis.file_link_release(tag),
                 data_master['parent'], data_master['result'], arch)
@@ -280,10 +283,10 @@ def _build_change(cid, build_data, rebased):
 
     for arch in ARCHES:
         if result[arch]['ok'] is None:
-            result[arch]['ok'] = build(arch, tag)
+            result[arch]['ok'], log = build(arch, tag)
             build_dst = paths.www(cid, version, parent, arch, rebased)
             os.makedirs(build_dst, exist_ok=True)
-            _process_build(paths.build(arch), build_dst,
+            _process_build(paths.build(arch), build_dst, log,
                 cid + ' v' + version + ' on ' + parent + ' [' + arch + ']',
                 log_analysis.file_link_change(legacy_id, version),
                 parent, result, arch)

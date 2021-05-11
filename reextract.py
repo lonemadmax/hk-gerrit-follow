@@ -42,25 +42,56 @@ def clear_html_log(file):
                     out.write(unescape(RE_NOHTML.sub('', line)))
     return outname
 
+def loglines(fname):
+    with open(fname, 'rt') as logf:
+        log = logf.read().split('\n')
+    PT = log_analysis.PathTransformer()
+    for i, s in enumerate(PT.transform(log)):
+        log[i] = s
+    return log
+
 # TODO: keep modifications in sync with builder.py:_process_build
 # TODO: legacy, remove when all logs use one file
 def _process_build2(stdout, stderr, dst, title, linker, arch_data, parent_arch_data):
-    result = log_analysis.analyse(stderr, stdout)
-    arch_data['message'] = result['failures']
-    files = defaultdict(lambda: len(files))
+    files = { 'buildlog-stderr.html': 0, 'buildlog-stdout.html': 1 }
     msg_refs = {'warnings': [[], []], 'errors': [[], []]}
+
+    logerr = loglines(stderr)
+    result = log_analysis.analyse(logerr)
     for k in ('warnings', 'errors'):
-        arch_data[k] = sum(len(v) for v in result[k].values())
+        n = 0
         for msgs in result[k].values():
             for i, v in enumerate(msgs):
-                f, lf, ls, msg = v
-                if f == stderr:
-                    f = 'buildlog-stderr.html'
-                    msg_refs[k][1].append(lf)
-                elif f == stdout:
-                    f = 'buildlog-stdout.html'
-                    msg_refs[k][0].append(lf)
-                msgs[i] = (files[f], lf, ls, msg)
+                lf, ls, msg = v
+                msg_refs[k][1].append(lf)
+                msgs[i] = (0, lf, ls, msg)
+                n += 1
+        arch_data[k] = n
+
+    logout = loglines(stdout)
+    resultout = log_analysis.analyse(logout)
+    msgmap = { i: result['messages'][k]
+        for k, i in resultout['messages'].items() }
+    for k in ('warnings', 'errors'):
+        n = 0
+        for src, msgs in resultout[k].items():
+            for i, v in enumerate(msgs):
+                lf, ls, msg = v
+                msg_refs[k][0].append(lf)
+                msgs[i] = (1, lf, ls, msgmap[msg])
+                n += 1
+            result[k][src].extend(msgs)
+        arch_data[k] += n
+    result['packages'].update(resultout['packages'])
+    if result['failures']:
+        failures = result['failures'].split('\n')
+    else:
+        failures = []
+    if resultout['failures']:
+        failures.extend(resultout['failures'].split('\n'))
+    result['failures'] = '\n'.join(failures)
+
+    arch_data['message'] = result['failures']
     result['files'] = [''] * len(files.values())
     for k, v in files.items():
         result['files'][v] = k
@@ -78,18 +109,17 @@ def _process_build2(stdout, stderr, dst, title, linker, arch_data, parent_arch_d
     lead = ''.join(lead_items)
     css = paths.link_root() + '/css/log.css'
 
-    def write_log(src, dst, title2, body, line_msgs):
-        with open(src, 'rt') as fin:
-            with open(dst, 'wt') as fout:
-                fout.write('<!DOCTYPE html>\n<html><head>'
-                    '<meta charset="utf-8" />\n<title>')
-                fout.write(' '.join((title, title2)))
-                fout.write('</title>\n<link rel="stylesheet" href="')
-                fout.write(css)
-                fout.write('" />\n</head><body>\n')
-                fout.write(lead)
-                body(fin, fout, file_linker=linker, line_msgs=line_msgs)
-                fout.write('\n</body></html>')
+    def write_log(lines, dst, title2, body, line_msgs):
+        with open(dst, 'wt') as fout:
+            fout.write('<!DOCTYPE html>\n<html><head>'
+                '<meta charset="utf-8" />\n<title>')
+            fout.write(' '.join((title, title2)))
+            fout.write('</title>\n<link rel="stylesheet" href="')
+            fout.write(css)
+            fout.write('" />\n</head><body>\n')
+            fout.write(lead)
+            body(lines, fout, file_linker=linker, line_msgs=line_msgs)
+            fout.write('\n</body></html>')
 
     def gen_line_msgs(outn):
         m = 0
@@ -105,10 +135,10 @@ def _process_build2(stdout, stderr, dst, title, linker, arch_data, parent_arch_d
         return line_msgs
 
     line_msgs = gen_line_msgs(0)
-    write_log(stdout, join(dst, 'buildlog-stdout.html'), 'build stdout',
+    write_log(logout, join(dst, 'buildlog-stdout.html'), 'build stdout',
         log_analysis.htmlout, line_msgs)
     line_msgs = gen_line_msgs(1)
-    write_log(stderr, join(dst, 'buildlog-stderr.html'), 'build stderr',
+    write_log(logerr, join(dst, 'buildlog-stderr.html'), 'build stderr',
         log_analysis.htmlout, line_msgs)
 
     result['packages'] = list(result['packages'])
@@ -123,7 +153,8 @@ def _process_build2(stdout, stderr, dst, title, linker, arch_data, parent_arch_d
 
 # TODO: keep modifications in sync with builder.py:_process_build
 def _process_build1(stdout, dst, title, linker, arch_data, parent_arch_data):
-    result = log_analysis.analyse(stdout)
+    log = loglines(stdout)
+    result = log_analysis.analyse(log)
     arch_data['message'] = result['failures']
     files = defaultdict(lambda: len(files))
     msg_refs = {'warnings': [[], []], 'errors': [[], []]}
@@ -131,7 +162,7 @@ def _process_build1(stdout, dst, title, linker, arch_data, parent_arch_data):
         arch_data[k] = sum(len(v) for v in result[k].values())
         for msgs in result[k].values():
             for i, v in enumerate(msgs):
-                f, lf, ls, msg = v
+                lf, ls, msg = v
                 f = 'buildlog.html'
                 msg_refs[k][0].append(lf)
                 msgs[i] = (files[f], lf, ls, msg)
@@ -152,18 +183,17 @@ def _process_build1(stdout, dst, title, linker, arch_data, parent_arch_data):
     lead = ''.join(lead_items)
     css = paths.link_root() + '/css/log.css'
 
-    def write_log(src, dst, title2, body, line_msgs):
-        with open(src, 'rt') as fin:
-            with open(dst, 'wt') as fout:
-                fout.write('<!DOCTYPE html>\n<html><head>'
-                    '<meta charset="utf-8" />\n<title>')
-                fout.write(' '.join((title, title2)))
-                fout.write('</title>\n<link rel="stylesheet" href="')
-                fout.write(css)
-                fout.write('" />\n</head><body>\n')
-                fout.write(lead)
-                body(fin, fout, file_linker=linker, line_msgs=line_msgs)
-                fout.write('\n</body></html>')
+    def write_log(lines, dst, title2, body, line_msgs):
+        with open(dst, 'wt') as fout:
+            fout.write('<!DOCTYPE html>\n<html><head>'
+                '<meta charset="utf-8" />\n<title>')
+            fout.write(' '.join((title, title2)))
+            fout.write('</title>\n<link rel="stylesheet" href="')
+            fout.write(css)
+            fout.write('" />\n</head><body>\n')
+            fout.write(lead)
+            body(lines, fout, file_linker=linker, line_msgs=line_msgs)
+            fout.write('\n</body></html>')
 
     def gen_line_msgs(outn):
         m = 0
@@ -179,7 +209,7 @@ def _process_build1(stdout, dst, title, linker, arch_data, parent_arch_data):
         return line_msgs
 
     line_msgs = gen_line_msgs(0)
-    write_log(stdout, join(dst, 'buildlog.html'), 'build',
+    write_log(log, join(dst, 'buildlog.html'), 'build',
         log_analysis.htmlout, line_msgs)
 
     result['packages'] = list(result['packages'])

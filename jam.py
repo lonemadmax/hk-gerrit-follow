@@ -40,11 +40,13 @@ def jam(wd, target, options=None, quick=False, jam_cmd=None, output=None):
     if not output:
         output = ''.join([c for c in basefile if c.isalnum()])
         if output:
-            output = os.path.join(wd, output)
+            output = os.path.join(wd, output) + '.out'
     if output:
-        out = open(output + '.out', mode='wb')
+        out = open(output, mode='wb')
     else:
-        out, _ = tempfile.mkstemp(suffix='.out', prefix='jam', dir=wd)
+        out, output = tempfile.mkstemp(suffix='.out', prefix='jam', dir=wd)
 
-    return subprocess.run(args, stdout=out, stderr=subprocess.STDOUT, cwd=wd)
+    cp = subprocess.run(args, stdout=out, stderr=subprocess.STDOUT, cwd=wd)
+    out.close()
+    return cp, output
 

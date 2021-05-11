@@ -1,5 +1,4 @@
 from collections import defaultdict
-import fileinput
 import html
 import os
 from os.path import dirname, normpath, relpath
@@ -8,7 +7,8 @@ import re
 import paths
 
 
-__all__ = ('analyse', 'htmlout', 'file_link_release', 'file_link_change')
+__all__ = ('analyse', 'htmlout', 'file_link_release', 'file_link_change',
+    'PathTransformer')
 
 
 
@@ -35,19 +35,23 @@ RE_NOTICE = re.compile(r'\b(warning|(?:fatal )error|error)\s*:.*',
 RE_URL = re.compile(r'\b\w+://[\w\./-]*\b')
 
 
-def path_transformer(f):
+class PathTransformer():
     abs_src = paths.worktree()
     build_root = paths.build('fake')
     rel_src = relpath(abs_src, start=build_root)
     build_root = dirname(build_root)
     bt_root = dirname(paths.buildtools('fake'))
 
-    for line in f:
-        line = line.replace(rel_src, '/s')
-        line = line.replace(abs_src, '/s')
-        line = line.replace(build_root, '/b')
-        line = line.replace(bt_root, '/t')
-        yield line[:-1]
+    def transform_line(self, line):
+        line = line.replace(self.rel_src, '/s')
+        line = line.replace(self.abs_src, '/s')
+        line = line.replace(self.build_root, '/b')
+        line = line.replace(self.bt_root, '/t')
+        return line
+
+    def transform(self, f):
+        for line in f:
+            yield self.transform_line(line)
 
 
 def match_error_key(s):
@@ -164,7 +168,7 @@ def match_error_key(s):
 
 
 def itemize(f):
-    for line in path_transformer(f):
+    for lineno, line in enumerate(f, start=1):
         #if line.startswith(file_prefix):
         if ' warning: ' in line or ' error: ' in line:
             match = RE_COMPILER_MSG.match(line)
@@ -191,17 +195,14 @@ def itemize(f):
                     type = 'WARN'
                 else:
                     type = 'ERR'
-                yield (type, f.filename(), f.filelineno(),
-                    (file, int(match.group('line')), match.group('row'),
-                        msg, error_key))
+                yield (type, lineno, (file, int(match.group('line')),
+                    match.group('row'), msg, error_key))
             elif ('ld: warning' in line and ' needed by ' in line
                     and ' not found ' in line):
-                yield ('WARN', f.filename(), f.filelineno(),
-                    ('ld', 0, None, line, 'lib-not-found'))
+                yield ('WARN', lineno, ('ld', 0, None, line, 'lib-not-found'))
             elif line.startswith('collect2: error: ld returned'):
                 # TODO: there is some specific info, but in other lines
-                yield ('ERR', f.filename(), f.filelineno(),
-                    ('ld', 0, None, line, 'linker'))
+                yield ('ERR', lineno, ('ld', 0, None, line, 'linker'))
             elif ('dprintf("dosfs error: ' not in line
                     and 'In function' not in line):
                 # DEBUG
@@ -211,46 +212,40 @@ def itemize(f):
             # objects/..../bla.o: In function bla:
             # ...cpp:(...): undefined reference to ...
             # collect2: ld returned 1 exit status
-            yield ('ERR', f.filename(), f.filelineno(),
-                ('ld', 0, None, line, 'linker'))
+            yield ('ERR', lineno, ('ld', 0, None, line, 'linker'))
         elif line.startswith("Warning: couldn't resolve catalog-access:"):
-            yield ('WARN', f.filename(), f.filelineno(),
-                ('catkeys', 0, None, line, 'catalog'))
+            yield ('WARN', lineno, ('catkeys', 0, None, line, 'catalog'))
         elif line.startswith('warning: using independent target'):
-            yield ('WARN', f.filename(), f.filelineno(),
+            yield ('WARN', lineno,
                 ('jambuild', 0, None, line, 'jam-independent-target'))
         elif line.startswith('build-feature packages unavailable'):
             for pkg in line[line.find(':')+1:].split():
-                yield ('WARN', f.filename(), f.filelineno(),
+                yield ('WARN', lineno,
                     ('jambuild', 0, None, line, 'jam-unavailable-build-pkg'))
         elif (line.startswith('AddHaikuImagePackages: package')
                 and line.endswith(' not available! ')):
-            yield ('WARN', f.filename(), f.filelineno(),
+            yield ('WARN', lineno,
                 ('jambuild', 0, None, line, 'jam-unavailable-pkg'))
         elif line.startswith('warning: unknown rule '):
-            yield ('WARN', f.filename(), f.filelineno(),
-                ('jambuild', 0, None, line, 'jam-rule'))
+            yield ('WARN', lineno, ('jambuild', 0, None, line, 'jam-rule'))
         elif ((line.startswith(('...failed ', "...can't "))
                 and line.endswith('...'))
                 or line.startswith("don't know how to")):
-            yield ('FAIL', f.filename(), f.filelineno(), line)
-            yield ('ERR', f.filename(), f.filelineno(),
-                ('jambuild', 0, None, line, 'jam-fail'))
+            yield ('FAIL', lineno, line)
+            yield ('ERR', lineno, ('jambuild', 0, None, line, 'jam-fail'))
         elif line.endswith('.hpkg: Creating the package ...'):
-            yield ('PKG', f.filename(), f.filelineno(),
-                line[:-len(': Creating the package ...')])
+            yield ('PKG', lineno, line[:-len(': Creating the package ...')])
             # TODO: also get downloaded pkgs or...
             # Extracting download/git-2.26.0-2-x86_64.hpkg ...
             # Extracting ../../../../worktrees/haiku/testbuilds/src/apps/webpositive/bookmarks/WebPositiveBookmarks.zip
         elif ((line.startswith('ERROR: ') and ' dependenc' in line)
                 or (line.startswith('problem') and ' nothing provides ' in line)):
-            yield ('ERR', f.filename(), f.filelineno(),
+            yield ('ERR', lineno,
                 ('jambuild', 0, None, line, 'jam-dependencies'))
         elif line.startswith('failed: Connection timed out.'):
             # TODO?
             #wget: unable to resolve host address ‘eu.hpkg.haiku-os.org’
-            yield ('ERR', f.filename(), f.filelineno(),
-                ('connection', 0, None, line, 'timeout'))
+            yield ('ERR', lineno, ('connection', 0, None, line, 'timeout'))
         else:
             match = RE_COMPILER_MSG2.match(line)
             if match:
@@ -287,33 +282,31 @@ def itemize(f):
                     type = 'ERR'
                 else:
                     type = 'WARN'
-                yield (type, f.filename(), f.filelineno(),
-                    (file, int(match.group('line')), match.group('row'),
-                    msg, error_key))
+                yield (type, lineno, (file, int(match.group('line')),
+                    match.group('row'), msg, error_key))
 
 
-def analyse(*args):
+def analyse(log):
     msg_key = defaultdict(lambda: len(msg_key))
     warnings = defaultdict(list)
     errors = defaultdict(list)
     failures = []
     pkgs = set()
-    with fileinput.input(files=args) as f:
-        for type, file, line, data in itemize(f):
-            if type in ('WARN', 'ERR'):
-                if type == 'WARN':
-                    d = warnings
-                else:
-                    d = errors
-                origin, origin_line, row, msg, short_msg = data
-                # TODO: Some of these are in "included code" and I don't get
-                # the caller. Some seem to be duplicates.
-                d[origin].append((file, line, origin_line, msg_key[short_msg]))
-            elif type == 'PKG':
-                pkgs.add(data)
-            elif type == 'FAIL':
-                failures.append(data)
-            # else nothing
+    for type, line, data in itemize(log):
+        if type in ('WARN', 'ERR'):
+            if type == 'WARN':
+                d = warnings
+            else:
+                d = errors
+            origin, origin_line, row, msg, short_msg = data
+            # TODO: Some of these are in "included code" and I don't get
+            # the caller. Some seem to be duplicates.
+            d[origin].append((line, origin_line, msg_key[short_msg]))
+        elif type == 'PKG':
+            pkgs.add(data)
+        elif type == 'FAIL':
+            failures.append(data)
+        # else nothing
     return {
         'packages': pkgs,
         'failures': '\n'.join(failures),
@@ -345,7 +338,7 @@ def file_link_change(change_number, change_version):
     return linker
 
 
-def htmlout(fin, fout, anchor_prefix='n', lineno=1, file_linker=None,
+def htmlout(log, fout, anchor_prefix='n', lineno=1, file_linker=None,
         line_msgs=None):
     msg_name = [None, 'warning', 'error']
     msg_class = None
@@ -359,7 +352,7 @@ def htmlout(fin, fout, anchor_prefix='n', lineno=1, file_linker=None,
             + '">' + m.group(0) + '</a>')
 
     fout.write('\n<pre><ol class="log">')
-    for line in path_transformer(fin):
+    for line in log:
         line = html.escape(line, quote=True)
         if line.endswith('.hpkg: Creating the package ...'):
             pkg = line[:-len(': Creating the package ...')]
