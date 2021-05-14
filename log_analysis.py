@@ -137,7 +137,8 @@ def match_error_key(s):
         return 'invisible-outside'
     if s.startswith('forward declaration of '):
         return 'forward-declaration'
-    if s.startswith(('parse error', 'expected ', 'lvalue required')):
+    if s.startswith(('parse error', 'expected ', 'lvalue required',
+            'syntax error')):
         return 'parse'
     if 'has incomplete type' in s:
         return 'incomplete-type'
@@ -158,12 +159,17 @@ def match_error_key(s):
         return 'incompatible-implicit-declaration'
     if s.startswith('member initializers for'):
         return 'reorder'
-    if s.startswith('invalid type'):
+    if s.startswith('invalid type') or s.endswith('with no type'):
         return 'invalid-type'
     if s.endswith('is ambiguous'):
         return 'ambiguous'
     if 'aggregate initializer' in s:
         return 'invalid-offsetof'
+    if (s.startswith('conflicting types for')
+            or s.endswith('redeclared as different kind of symbol')):
+        return 'declaration-mismatch'
+    if s.startswith('enumeration value') and s.endswith('not handled in switch'):
+        return 'switch'
     return s
 
 
@@ -265,9 +271,11 @@ def itemize(f):
                 if error_key is None:
                     error_key = match_error_key(msg)
                     if error_key == msg:
-                        if not msg.startswith(('In file included from ',
+                        if not (msg.startswith(('In file included from ',
                                 'In function', 'at this point in file',
-                                'candidates are: ', 'candidate is: ')):
+                                'candidates are: ', 'candidate is: ',
+                                'previous declaration'))
+                                or 'previously defined here' in msg):
                             print('DDD should WARN?', msg, '|', line)
                         continue
                 if file.startswith('/s/'):
