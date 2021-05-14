@@ -365,7 +365,7 @@ def htmlout(log, fout, anchor_prefix='n', lineno=1, file_linker=None,
                 msg_class = msg_name[line_msgs[lineno]]
                 if msg_class:
                     line2 = RE_NOTICE.sub(repl_notice, line)
-                    if line != line2:
+                    if line != line2 and not line2.startswith('<span class'):
                         msg_class = None
                         line = line2
             except IndexError:
