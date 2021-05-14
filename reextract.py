@@ -1,6 +1,5 @@
 #! /usr/bin/python
 
-from collections import defaultdict
 import json
 from html import escape, unescape
 import os
@@ -156,19 +155,16 @@ def _process_build1(stdout, dst, title, linker, arch_data, parent_arch_data):
     log = loglines(stdout)
     result = log_analysis.analyse(log)
     arch_data['message'] = result['failures']
-    files = defaultdict(lambda: len(files))
-    msg_refs = {'warnings': [[], []], 'errors': [[], []]}
+    msg_refs = {'warnings': [], 'errors': []}
     for k in ('warnings', 'errors'):
         arch_data[k] = sum(len(v) for v in result[k].values())
         for msgs in result[k].values():
             for i, v in enumerate(msgs):
                 lf, ls, msg = v
                 f = 'buildlog.html'
-                msg_refs[k][0].append(lf)
-                msgs[i] = (files[f], lf, ls, msg)
-    result['files'] = [''] * len(files.values())
-    for k, v in files.items():
-        result['files'][v] = k
+                msg_refs[k].append(lf)
+                msgs[i] = (0, lf, ls, msg)
+    result['files'] = ['buildlog.html']
 
     title = escape(title, quote=True)
     lead_items = ['<h1>', title, '</h1>\n<p>',
@@ -183,11 +179,11 @@ def _process_build1(stdout, dst, title, linker, arch_data, parent_arch_data):
     lead = ''.join(lead_items)
     css = paths.link_root() + '/css/log.css'
 
-    def write_log(lines, dst, title2, body, line_msgs):
+    def write_log(lines, dst, body, line_msgs):
         with open(dst, 'wt') as fout:
             fout.write('<!DOCTYPE html>\n<html><head>'
                 '<meta charset="utf-8" />\n<title>')
-            fout.write(' '.join((title, title2)))
+            fout.write(title)
             fout.write('</title>\n<link rel="stylesheet" href="')
             fout.write(css)
             fout.write('" />\n</head><body>\n')
@@ -195,22 +191,18 @@ def _process_build1(stdout, dst, title, linker, arch_data, parent_arch_data):
             body(lines, fout, file_linker=linker, line_msgs=line_msgs)
             fout.write('\n</body></html>')
 
-    def gen_line_msgs(outn):
-        m = 0
-        for k in ('warnings', 'errors'):
-            try:
-                m = max(max(msg_refs[k][outn]), m)
-            except ValueError:
-                pass
-        line_msgs = [0] * (m + 1)
-        for k, v in (('warnings', 1), ('errors', 2)):
-            for i in msg_refs[k][outn]:
-                line_msgs[i] = v
-        return line_msgs
+    m = 0
+    for k in ('warnings', 'errors'):
+        try:
+            m = max(max(msg_refs[k]), m)
+        except ValueError:
+            pass
+    line_msgs = [0] * (m + 1)
+    for k, v in (('warnings', 1), ('errors', 2)):
+        for i in msg_refs[k]:
+            line_msgs[i] = v
 
-    line_msgs = gen_line_msgs(0)
-    write_log(log, join(dst, 'buildlog.html'), 'build',
-        log_analysis.htmlout, line_msgs)
+    write_log(log, join(dst, 'buildlog.html'), log_analysis.htmlout, line_msgs)
 
     result['packages'] = list(result['packages'])
 
