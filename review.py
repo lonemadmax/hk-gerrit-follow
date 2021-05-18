@@ -25,9 +25,6 @@ def _clean_msg(s):
 def review(change, gerrit_change):
     if AUTH is None:
         return
-    # TODO: declared in testbuilds
-    if 'WIP' in change['tags']:
-        return
     # TODO: db.get_latest_build
     try:
         build = change['build'][-1]
