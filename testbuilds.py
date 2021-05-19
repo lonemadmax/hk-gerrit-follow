@@ -271,7 +271,22 @@ def remove_old_harder():
     remove_done_before(time.time() - SECONDS_PER_DAY)
     for k, lim in (('done', 1), ('change', 3)):
         for cid, change in db.data[k].items():
-            # TODO: this (and next loop) may be removing the only correct builds
+            # TODO: We may be removing the only correct builds
+            try:
+                keep = change['sent_review']['parent']
+            except KeyError:
+                keep = ''
+            builds = change['build']
+            change['build'], remove = builds[-lim:], builds[:-lim]
+            for old in remove:
+                if old['parent'] == keep:
+                    change['build'].insert(0, old)
+                else:
+                    rmtree(paths.www(cid, old['version'], old['parent'], None),
+                        ignore_errors=True)
+                    if old['picked']:
+                        rmtree(paths.www(cid, old['version'], old['parent'],
+                            None, full=False), ignore_errors=True)
             for old in change['build'][:-1]:
                 for res, full in (('rebased', True), ('picked', False)):
                     for arch in old[res]:
@@ -279,16 +294,6 @@ def remove_old_harder():
                             paths.clean_up(paths.www(cid, old['version'],
                                 old['parent'], arch, full=full))
                 old['logs_only'] = True
-            builds = change['build']
-            change['build'], remove = builds[-lim:], builds[:-lim]
-            # We've already removed the big iso and the reference in db, keep
-            # the other files (at least the logs) until the change is merged
-            #for old in remove:
-            #    rmtree(paths.www(cid, old['version'], old['parent'], None),
-            #        ignore_errors=True)
-            #    if old['picked']:
-            #        rmtree(paths.www(cid, old['version'], old['parent'],
-            #            None, full=False), ignore_errors=True)
     remove_unused_releases()
     db.save()
 

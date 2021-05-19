@@ -105,6 +105,7 @@ def review(change, gerrit_change):
             'omit_duplicate_comments': True
         }, AUTH, quiet=True)
         current_review['version'] = build['version']
+        current_review['parent'] = build['parent']
         current_review['score'] = score
         current_review['message'] = message
         change['sent_review'] = current_review
