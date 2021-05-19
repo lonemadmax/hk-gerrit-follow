@@ -298,6 +298,7 @@ def analyse(log):
     msg_key = defaultdict(lambda: len(msg_key))
     warnings = defaultdict(list)
     errors = defaultdict(list)
+    full = defaultdict(list)
     failures = []
     pkgs = set()
     for type, line, data in itemize(log):
@@ -310,6 +311,7 @@ def analyse(log):
             # TODO: Some of these are in "included code" and I don't get
             # the caller. Some seem to be duplicates.
             d[origin].append((line, origin_line, msg_key[short_msg]))
+            full[origin].append((line, origin_line, msg, msg_key[short_msg]))
         elif type == 'PKG':
             pkgs.add(data)
         elif type == 'FAIL':
@@ -320,7 +322,8 @@ def analyse(log):
         'failures': '\n'.join(failures),
         'messages': msg_key,
         'warnings': warnings,
-        'errors': errors
+        'errors': errors,
+        'full': full,
     }
 
 

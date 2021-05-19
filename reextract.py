@@ -57,6 +57,7 @@ def _process_build2(stdout, stderr, dst, title, linker, arch_data, parent_arch_d
 
     logerr = loglines(stderr)
     result = log_analysis.analyse(logerr)
+    del result['full']
     for k in ('warnings', 'errors'):
         n = 0
         for msgs in result[k].values():
@@ -69,6 +70,7 @@ def _process_build2(stdout, stderr, dst, title, linker, arch_data, parent_arch_d
 
     logout = loglines(stdout)
     resultout = log_analysis.analyse(logout)
+    del resultout['full']
     msgmap = { i: result['messages'][k]
         for k, i in resultout['messages'].items() }
     for k in ('warnings', 'errors'):
@@ -88,6 +90,7 @@ def _process_build2(stdout, stderr, dst, title, linker, arch_data, parent_arch_d
         failures = []
     if resultout['failures']:
         failures.extend(resultout['failures'].split('\n'))
+    del resultout
     result['failures'] = '\n'.join(failures)
 
     arch_data['message'] = result['failures']
@@ -211,6 +214,10 @@ def _process_build1(stdout, dst, title, linker, arch_data, parent_arch_data):
         messages[v] = k
     result['messages'] = messages
 
+    with open(join(dst, 'build-messages.json'), 'wt') as f:
+        json.dump({'messages': result['full'], 'key': result['messages']}, f)
+    del result['full']
+
     with open(join(dst, 'build-result.json'), 'wt') as f:
         json.dump(result, f)
 
@@ -245,6 +252,8 @@ def process(basedir, result, parent, title, linker):
                         title + ' [' + arch + ']', linker,
                         result[arch], parent_result)
                     move(join(TMPDIR, 'buildlog.html'), stdout)
+                    move(join(TMPDIR, 'build-messages.json'),
+                        join(base, 'build-messages.json'))
                 move(join(TMPDIR, 'build-result.json'), resultfile)
                 extract_bad(resultfile, badafter)
             elif not exists(join(basedir, 'conflicts.html')):
