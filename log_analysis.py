@@ -225,9 +225,11 @@ def itemize(f):
             yield ('WARN', lineno,
                 ('jambuild', 0, None, line, 'jam-independent-target'))
         elif line.startswith('build-feature packages unavailable'):
-            for pkg in line[line.find(':')+1:].split():
-                yield ('WARN', lineno,
-                    ('jambuild', 0, None, line, 'jam-unavailable-build-pkg'))
+            line, pkglist = line.split(':', maxsplit=1)
+            line += ': '
+            for pkg in pkglist.split():
+                yield ('WARN', lineno, ('jambuild', 0, None, line + pkg,
+                    'jam-unavailable-build-pkg'))
         elif (line.startswith('AddHaikuImagePackages: package')
                 and line.endswith(' not available! ')):
             yield ('WARN', lineno,
