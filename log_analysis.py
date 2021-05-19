@@ -313,7 +313,7 @@ def analyse(log):
             # TODO: Some of these are in "included code" and I don't get
             # the caller. Some seem to be duplicates.
             d[origin].append((line, origin_line, msg_key[short_msg]))
-            full[origin].append((line, origin_line, msg, msg_key[short_msg]))
+            full[origin].append((line, origin_line, msg))
         elif type == 'PKG':
             pkgs.add(data)
         elif type == 'FAIL':

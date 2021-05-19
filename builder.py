@@ -182,7 +182,7 @@ def _process_build(src, dst, log, title, linker, parent, result, arch):
     result['messages'] = messages
 
     with open(join(dst, 'build-messages.json'), 'wt') as f:
-        json.dump({'messages': result['full'], 'key': result['messages']}, f)
+        json.dump(result['full'], f)
     del result['full']
 
     with open(join(dst, 'build-result.json'), 'wt') as f:
