@@ -205,6 +205,9 @@
         fragment.appendChild(compose('div', lastLine));
         fragment.appendChild(text(messageCountCmp(build, arch, rebased)
             .join(', ')));
+        if (build.parent) {
+            fragment.appendChild(text('small', '(vs ' + build.parent.tag + ')'));
+        }
         return fragment;
     }
 

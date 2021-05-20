@@ -110,15 +110,16 @@ def _process_build(src, dst, log, title, linker, parent, result, arch):
     title = html.escape(title, quote=True)
     lead_items = ['<h1>', title, '</h1>\n<p>',
         str(arch_data['warnings']), '', ' warnings<br>\n',
-        str(arch_data['errors']), '', ' errors</p>\n<pre>',
-        html.escape(arch_data['message']), '</pre>\n']
+        str(arch_data['errors']), '', ' errors', '',
+        '</p>\n<pre>', html.escape(arch_data['message']), '</pre>\n']
     if parent:
-        parent = db.data['release'][parent]['result']
-        if arch in parent:
+        parent_result = db.data['release'][parent]['result']
+        if arch in parent_result:
             for t, i in (('warnings', 4), ('errors', 7)):
-                delta = arch_data[t] - parent[arch][t]
+                delta = arch_data[t] - parent_result[arch][t]
                 if delta:
                     lead_items[i] = ' (%+d)' % delta
+                    lead_items[9] = '<br>\n(vs ' + parent + ')'
     lead = ''.join(lead_items)
     css = paths.link_root() + '/css/log.css'
 

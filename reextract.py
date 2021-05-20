@@ -101,13 +101,14 @@ def _process_build2(stdout, stderr, dst, title, linker, arch_data, parent_arch_d
     title = escape(title, quote=True)
     lead_items = ['<h1>', title, '</h1>\n<p>',
         str(arch_data['warnings']), '', ' warnings<br>\n',
-        str(arch_data['errors']), '', ' errors</p>\n<pre>',
-        escape(arch_data['message']), '</pre>\n']
+        str(arch_data['errors']), '', ' errors', '',
+        '</p>\n<pre>', escape(arch_data['message']), '</pre>\n']
     if parent_arch_data:
         for t, i in (('warnings', 4), ('errors', 7)):
             delta = arch_data[t] - parent_arch_data[t]
             if delta:
                 lead_items[i] = ' (%+d)' % delta
+                lead_items[9] = '<br>\n(vs ' + parent_arch_data['name'] + ')'
     lead = ''.join(lead_items)
     css = paths.link_root() + '/css/log.css'
 
@@ -172,13 +173,14 @@ def _process_build1(stdout, dst, title, linker, arch_data, parent_arch_data):
     title = escape(title, quote=True)
     lead_items = ['<h1>', title, '</h1>\n<p>',
         str(arch_data['warnings']), '', ' warnings<br>\n',
-        str(arch_data['errors']), '', ' errors</p>\n<pre>',
-        escape(arch_data['message']), '</pre>\n']
+        str(arch_data['errors']), '', ' errors', '',
+        '</p>\n<pre>', escape(arch_data['message']), '</pre>\n']
     if parent_arch_data:
         for t, i in (('warnings', 4), ('errors', 7)):
             delta = arch_data[t] - parent_arch_data[t]
             if delta:
                 lead_items[i] = ' (%+d)' % delta
+                lead_items[9] = '<br>\n(vs ' + parent_arch_data['name'] + ')'
     lead = ''.join(lead_items)
     css = paths.link_root() + '/css/log.css'
 
@@ -232,7 +234,8 @@ def process(basedir, result, parent, title, linker):
                 parent_result = None
                 if parent:
                     try:
-                        parent_result = parent['result'][arch]
+                        parent_result = parent['result'][arch].copy()
+                        parent_result['name'] = parent['name']
                     except KeyError:
                         pass
                 stdout = join(base, 'buildlog-stdout.html')
@@ -263,7 +266,10 @@ def process(basedir, result, parent, title, linker):
 def parent(build):
     if build['parent']:
         try:
-            return db.data['release'][build['parent']]
+            return {
+                'result': db.data['release'][build['parent']]['result'],
+                'name': build['parent'],
+            }
         except KeyError:
             pass
     return None
