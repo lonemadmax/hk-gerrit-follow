@@ -170,6 +170,8 @@ def match_error_key(s):
         return 'declaration-mismatch'
     if s.startswith('enumeration value') and s.endswith('not handled in switch'):
         return 'switch'
+    if s.startswith('too many arguments'):
+        return 'extra-args'
     return s
 
 
