@@ -91,6 +91,24 @@ def remove_emulated_attributes():
     rmtree(paths.emulated_attributes(), ignore_errors=True)
 
 
+# TODO: this (and quite a bit more) should be somewhere else
+_MASTER_MSGS = None
+def _get_msgs(tag, arch):
+    global _MASTER_MSGS
+    if (not _MASTER_MSGS) or _MASTER_MSGS['tag'] != tag:
+        _MASTER_MSGS = {'tag': tag}
+    try:
+        return _MASTER_MSGS[arch]
+    except KeyError:
+        try:
+            with open(join(paths.www('release', 'master', tag, arch),
+                    'build-messages.json'), 'rt') as f:
+                _MASTER_MSGS[arch] = json.load(f)
+        except Exception:
+            _MASTER_MSGS[arch] = None
+        return _MASTER_MSGS[arch]
+
+
 # TODO: keep modifications in sync with reextract.py:_process_build
 def _process_build(src, dst, log, title, linker, parent, result, arch):
     arch_data = result[arch]
@@ -112,7 +130,14 @@ def _process_build(src, dst, log, title, linker, parent, result, arch):
         str(arch_data['warnings']), '', ' warnings<br>\n',
         str(arch_data['errors']), '', ' errors', '',
         '</p>\n<pre>', html.escape(arch_data['message']), '</pre>\n']
+    new_msgs = None
     if parent:
+        old_msgs = _get_msgs(parent, arch)
+        if old_msgs:
+            _, new_msgs = log_analysis.diff(old_msgs, result['full'])
+            if new_msgs:
+                with open(join(dst, 'new-messages.json'), 'wt') as f:
+                    json.dump(new_msgs, f)
         parent_result = db.data['release'][parent]['result']
         if arch in parent_result:
             for t, i in (('warnings', 4), ('errors', 7)):
@@ -132,6 +157,38 @@ def _process_build(src, dst, log, title, linker, parent, result, arch):
             fout.write(css)
             fout.write('" />\n</head><body>\n')
             fout.write(lead)
+
+            def write_msg_item(file, line, logline, msg):
+                if line:
+                    line = str(line)
+                    fout.write(' <li><samp><a href="')
+                    fout.write(linker(file, line))
+                    fout.write('">')
+                    fout.write(html.escape(file))
+                    fout.write(':' + line + '</a>: ')
+                else:
+                    fout.write(' <li><samp>')
+                    fout.write(html.escape(file))
+                    fout.write(': ')
+                fout.write('<a href="#n' + str(logline) + '">')
+                fout.write(html.escape(msg))
+                fout.write('</a></samp></li>\n')
+
+            if new_msgs:
+                fout.write('<h2>New messages</h2>\n<ul>\n')
+                for file, msgs in sorted(new_msgs.items()):
+                    for msg in msgs:
+                        write_msg_item(file, msg[1], msg[0], msg[2])
+                fout.write('</ul></pre>\n')
+
+            if result['errors']:
+                fout.write('\n<h2>Errors</h2>\n<ul>\n')
+                for file, msgs in sorted(result['errors'].items()):
+                    for msg in msgs:
+                        write_msg_item(file, msg[2], msg[1], messages[msg[3]])
+                fout.write('</ul></pre>\n')
+
+            fout.write('\n<h2>Log</h2>')
             body(log, fout, file_linker=linker, line_msgs=line_msgs)
             fout.write('\n</body></html>')
 
@@ -145,6 +202,11 @@ def _process_build(src, dst, log, title, linker, parent, result, arch):
     for k, v in (('warnings', 1), ('errors', 2)):
         for i in msg_refs[k]:
             line_msgs[i] = v
+
+    messages = [''] * (max(result['messages'].values()) + 1)
+    for k, v in result['messages'].items():
+        messages[v] = k
+    result['messages'] = messages
 
     write_log(log, join(dst, 'buildlog.html'), log_analysis.htmlout, line_msgs)
 
@@ -176,11 +238,6 @@ def _process_build(src, dst, log, title, linker, parent, result, arch):
             pass
 
     result['packages'] = list(result['packages'])
-
-    messages = [''] * (max(result['messages'].values()) + 1)
-    for k, v in result['messages'].items():
-        messages[v] = k
-    result['messages'] = messages
 
     with open(join(dst, 'build-messages.json'), 'wt') as f:
         json.dump(result['full'], f)

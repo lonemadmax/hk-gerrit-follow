@@ -154,8 +154,24 @@ def _process_build2(stdout, stderr, dst, title, linker, arch_data, parent_arch_d
     with open(join(dst, 'build-result.json'), 'wt') as f:
         json.dump(result, f)
 
+_MASTER_MSGS = None
+def _get_msgs(tag, arch):
+    global _MASTER_MSGS
+    if (not _MASTER_MSGS) or _MASTER_MSGS['tag'] != tag:
+        _MASTER_MSGS = {'tag': tag}
+    try:
+        return _MASTER_MSGS[arch]
+    except KeyError:
+        try:
+            with open(join(paths.www('release', 'master', tag, arch),
+                    'build-messages.json'), 'rt') as f:
+                _MASTER_MSGS[arch] = json.load(f)
+        except Exception:
+            _MASTER_MSGS[arch] = None
+        return _MASTER_MSGS[arch]
+
 # TODO: keep modifications in sync with builder.py:_process_build
-def _process_build1(stdout, dst, title, linker, arch_data, parent_arch_data):
+def _process_build1(stdout, dst, title, linker, arch_data, parent_arch_data, arch):
     log = loglines(stdout)
     result = log_analysis.analyse(log)
     arch_data['message'] = result['failures']
@@ -175,7 +191,14 @@ def _process_build1(stdout, dst, title, linker, arch_data, parent_arch_data):
         str(arch_data['warnings']), '', ' warnings<br>\n',
         str(arch_data['errors']), '', ' errors', '',
         '</p>\n<pre>', escape(arch_data['message']), '</pre>\n']
+    new_msgs = None
     if parent_arch_data:
+        old_msgs = _get_msgs(parent_arch_data['name'], arch)
+        if old_msgs:
+            _, new_msgs = log_analysis.diff(old_msgs, result['full'])
+            if new_msgs:
+                with open(join(dst, 'new-messages.json'), 'wt') as f:
+                    json.dump(new_msgs, f)
         for t, i in (('warnings', 4), ('errors', 7)):
             delta = arch_data[t] - parent_arch_data[t]
             if delta:
@@ -193,6 +216,34 @@ def _process_build1(stdout, dst, title, linker, arch_data, parent_arch_data):
             fout.write(css)
             fout.write('" />\n</head><body>\n')
             fout.write(lead)
+            def write_msg_item(file, line, logline, msg):
+                if line:
+                    line = str(line)
+                    fout.write(' <li><samp><a href="')
+                    fout.write(linker(file, line))
+                    fout.write('">')
+                    fout.write(escape(file))
+                    fout.write(':' + line + '</a>: ')
+                else:
+                    fout.write(' <li><samp>')
+                    fout.write(escape(file))
+                    fout.write(': ')
+                fout.write('<a href="#n' + str(logline) + '">')
+                fout.write(escape(msg))
+                fout.write('</a></samp></li>\n')
+            if new_msgs:
+                fout.write('<h2>New messages</h2>\n<ul>\n')
+                for file, msgs in sorted(new_msgs.items()):
+                    for msg in msgs:
+                        write_msg_item(file, msg[1], msg[0], msg[2])
+                fout.write('</ul></pre>\n')
+            if result['errors']:
+                fout.write('\n<h2>Errors</h2>\n<ul>\n')
+                for file, msgs in sorted(result['errors'].items()):
+                    for msg in msgs:
+                        write_msg_item(file, msg[2], msg[1], messages[msg[3]])
+                fout.write('</ul></pre>\n')
+            fout.write('\n<h2>Log</h2>')
             body(lines, fout, file_linker=linker, line_msgs=line_msgs)
             fout.write('\n</body></html>')
 
@@ -207,14 +258,14 @@ def _process_build1(stdout, dst, title, linker, arch_data, parent_arch_data):
         for i in msg_refs[k]:
             line_msgs[i] = v
 
-    write_log(log, join(dst, 'buildlog.html'), log_analysis.htmlout, line_msgs)
-
     result['packages'] = list(result['packages'])
 
     messages = [''] * (max(result['messages'].values()) + 1)
     for k, v in result['messages'].items():
         messages[v] = k
     result['messages'] = messages
+
+    write_log(log, join(dst, 'buildlog.html'), log_analysis.htmlout, line_msgs)
 
     with open(join(dst, 'build-messages.json'), 'wt') as f:
         json.dump(result['full'], f)
@@ -253,10 +304,18 @@ def process(basedir, result, parent, title, linker):
                     newstdout = clear_html_log(stdout)
                     _process_build1(newstdout, TMPDIR,
                         title + ' [' + arch + ']', linker,
-                        result[arch], parent_result)
+                        result[arch], parent_result, arch)
                     move(join(TMPDIR, 'buildlog.html'), stdout)
                     move(join(TMPDIR, 'build-messages.json'),
                         join(base, 'build-messages.json'))
+                    new_msgs = join(base, 'new-messages.json')
+                    try:
+                        move(join(TMPDIR, 'new-messages.json'), new_msgs)
+                    except FileNotFoundError:
+                        try:
+                            os.remove(new_msgs)
+                        except FileNotFoundError:
+                            pass
                 move(join(TMPDIR, 'build-result.json'), resultfile)
                 extract_bad(resultfile, badafter)
             elif not exists(join(basedir, 'conflicts.html')):

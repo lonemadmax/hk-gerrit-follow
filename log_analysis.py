@@ -8,7 +8,7 @@ import paths
 
 
 __all__ = ('analyse', 'htmlout', 'file_link_release', 'file_link_change',
-    'PathTransformer')
+    'PathTransformer', 'diff')
 
 
 
@@ -394,4 +394,42 @@ def htmlout(log, fout, anchor_prefix='n', lineno=1, file_linker=None,
                 '">', line, '</samp>')))
         lineno += 1
     fout.write('\n</ol></pre>')
+
+
+def diff(old, new):
+    # WARNING: they may be defaultdicts that we don't want to change (esp. new),
+    # so no try except KeyError.
+    # TODO: use patch info for renames, line changes, etc
+    removed = defaultdict(list)
+    added = defaultdict(list)
+    oldmsgs = defaultdict(list)
+    newmsgs = defaultdict(list)
+    for file, msgs in old.items():
+        if file in new:
+            oldmsgs.clear()
+            for msg in msgs:
+                oldmsgs[msg[2]].append(msg)
+            newmsgs.clear()
+            for msg in new[file]:
+                newmsgs[msg[2]].append(msg)
+            for k, v in newmsgs.items():
+                size = len(v)
+                oldsize = len(oldmsgs[k])
+                # As bad a choice as any other
+                if size > oldsize:
+                    for msg in v[:size-oldsize]:
+                        added[file].append(msg)
+                elif size < oldsize:
+                    for msg in oldmsgs[k][:oldsize-size]:
+                        removed[file].append(msg)
+                del oldmsgs[k]
+            for k, v in oldmsgs.items():
+                for msg in v[:size-oldsize]:
+                    removed[file].append(msg)
+        else:
+            removed[file] = msgs.copy()
+    for file, msgs in new.items():
+        if file not in old:
+            added[file] = msgs.copy()
+    return removed, added
 
