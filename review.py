@@ -9,16 +9,35 @@ import paths
 __all__ = ('review',)
 
 
+_CLEAN_MSG = (
+    (re.compile(r'objects/haiku/[^/]*/'), 'objects/haiku/<arch>/'),
+    (re.compile(r'(download/\S+-)[^-]+\.hpkg'), r'\1<arch>.hpkg'),
+)
+
 
 def _clean_msg(s):
-    s = re.sub(r'objects/haiku/[^/]*/', 'object/haiku/<arch>/', s)
-    s = re.sub(r'(download/\S+-)[^-]+\.hpkg', r'\1<arch>.hpkg', s)
+    for re, substitution in _CLEAN_MSG:
+        s = re.sub(substitution, s)
     s = s.split('\n')
     last = s[-1]
     if (last.startswith('...failed updating ')
             and last.endswith(' target(s)...')):
         s = s[:-1]
     return '   ' + '\n   '.join(s)
+
+
+def _base_review(build_result):
+    review = {}
+    for arch, result in build_result.items():
+        if arch == '*':
+            continue
+        review[arch] = {
+            'ok': result['ok'],
+            'msg': 'OK'
+        }
+        if not result['ok']:
+            review[arch]['msg'] = _clean_msg(result['message'])
+    return review
 
 
 # TODO: references to 'master'
@@ -30,11 +49,15 @@ def review(change, gerrit_change):
         build = change['build'][-1]
     except IndexError:
         return
-    if build['picked']:
-        return
     if not build['rebased']['*']:
         # TODO: maybe it is reviewed and now there are conflicts
         return
+    current_review = _base_review(build['rebased'])
+    if build['picked']:
+        picked_review = _base_review(build['picked'])
+        if picked_review != current_review:
+            # TODO: maybe it is reviewed and now there are differences
+            return
     rev_info = gerrit_change['revisions'][gerrit_change['current_revision']]
     if build['version'] != rev_info['_number']:
         return
@@ -43,26 +66,18 @@ def review(change, gerrit_change):
     same_as_last = True
     all_ok = True
     last_review = change['sent_review']
-    current_review = {}
     parent = db.data['release'][build['parent']]['result']
-    for arch, result in build['rebased'].items():
-        if arch == '*':
-            continue
-        current_review[arch] = {
-            'ok': result['ok'],
-            'msg': 'OK'
-        }
+    for arch, result in current_review.items():
         if not result['ok']:
             all_ok = False
-            current_review[arch]['msg'] = _clean_msg(result['message'])
         if arch in last_review and last_review[arch]['ok'] != result['ok']:
             same_as_last = False
             if result['ok']:
-                current_review[arch]['msg'] = 'fixed'
+                result['msg'] = 'fixed'
         if arch in parent and parent[arch]['ok'] != result['ok']:
             same_as_parent = False
             if result['ok']:
-                current_review[arch]['msg'] = 'fixes master'
+                result['msg'] = 'fixes master'
 
     if ((last_review['version'] != build['version'] or not same_as_last)
             and (all_ok or not same_as_parent)):
