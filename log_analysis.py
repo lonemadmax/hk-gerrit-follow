@@ -117,7 +117,8 @@ def match_error_key(s):
         return 'locales'
     if s.startswith(('Unknown section', 'label alone ')):
         return 'assembler'
-    if s.endswith('undeclared (first use this function)'):
+    if s.endswith(('undeclared (first use this function)', 'not declared',
+            'has not been declared')):
         return 'undeclared'
     if s.startswith('no matching function for call to'):
         return 'unmatched-call'
@@ -143,7 +144,7 @@ def match_error_key(s):
     if 'has incomplete type' in s:
         return 'incomplete-type'
     if (' has no member named ' in s or ' does not have a nested type ' in s
-            or s.endswith('does not name a type')
+            or 'does not name a type' in s
             or s.startswith('request for member ')):
         # TODO: ' has no member named ' may not be about types
         # seems to be about using anonymous unions/structs pre C11.
