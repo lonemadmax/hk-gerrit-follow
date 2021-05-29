@@ -1,6 +1,6 @@
 import re
 
-from config import AUTH
+from config import config
 import db
 import gerrit
 import paths
@@ -42,7 +42,7 @@ def _base_review(build_result):
 
 # TODO: references to 'master'
 def review(change, gerrit_change):
-    if AUTH is None:
+    if config['AUTH'] is None:
         return
     # TODO: db.get_latest_build
     try:
@@ -119,7 +119,7 @@ def review(change, gerrit_change):
                 'labels': {'Verified': score},
                 'notify': 'OWNER',
                 'omit_duplicate_comments': True
-            }, AUTH)
+            }, config['AUTH'])
             current_review['version'] = build['version']
             current_review['parent'] = build['parent']
             change['sent_review'] = current_review
