@@ -4,6 +4,7 @@ import os
 from os.path import dirname, normpath, relpath
 import re
 
+from config import config
 import paths
 
 
@@ -344,7 +345,7 @@ def file_link_release(commit):
 
 
 def file_link_change(change_number, change_version):
-    base = ('https://review.haiku-os.org/c/haiku/+/'
+    base = (config['gerrit_url'] + '/c/' + config['project'] + '/+/'
         + str(change_number) + '/' + str(change_version) + '/')
     def linker(path, line):
         url = base + path

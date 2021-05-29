@@ -7,6 +7,7 @@ from os.path import basename, exists, join
 import re
 from shutil import move
 
+from config import config
 import db
 import log_analysis
 import paths
@@ -163,7 +164,7 @@ def _get_msgs(tag, arch):
         return _MASTER_MSGS[arch]
     except KeyError:
         try:
-            with open(join(paths.www('release', 'master', tag, arch),
+            with open(join(paths.www('release', config['branch'], tag, arch),
                     'build-messages.json'), 'rt') as f:
                 _MASTER_MSGS[arch] = json.load(f)
         except Exception:
@@ -334,8 +335,8 @@ def parent(build):
     return None
 
 for tag, build in sorted(db.data['release'].items(), key=lambda x: x[1]['time']):
-    base = paths.www('release', 'master', tag, None)
-    process(base, build['result'], parent(build), 'master: ' + tag,
+    base = paths.www('release', config['branch'], tag, None)
+    process(base, build['result'], parent(build), config['branch'] + ': ' + tag,
         log_analysis.file_link_release(tag))
 
 for group in ('done', 'change'):

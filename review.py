@@ -40,7 +40,6 @@ def _base_review(build_result):
     return review
 
 
-# TODO: references to 'master'
 def review(change, gerrit_change):
     if config['AUTH'] is None:
         return
@@ -77,7 +76,7 @@ def review(change, gerrit_change):
         if arch in parent and parent[arch]['ok'] != result['ok']:
             same_as_parent = False
             if result['ok']:
-                result['msg'] = 'fixes master'
+                result['msg'] = 'fixes ' + config['branch']
 
     if ((last_review['version'] != build['version'] or not same_as_last)
             and (all_ok or not same_as_parent)):
@@ -109,7 +108,7 @@ def review(change, gerrit_change):
             else:
                 message += ' [' + ', '.join(current_review.keys()) + ']'
                 message += '\n\n' + list(current_review.values())[0]['msg']
-        message += ('\n\nhttps://haiku.movingborders.es' + paths.www_link(
+        message += ('\n\n' + config['site'] + paths.www_link(
             paths.www(gerrit_change['change_id'], build['version'],
             build['parent'], None)))
         try:

@@ -14,6 +14,7 @@ from shutil import disk_usage, rmtree
 import time
 
 import builder
+from config import config
 import db
 import gerrit
 import paths
@@ -31,7 +32,7 @@ KNOB_OLD_CHANGESET = 2 * 30 * SECONDS_PER_DAY
 KNOB_OLD_BUILD = 30 * SECONDS_PER_DAY
 KNOB_MINIMUM_DELAY = SECONDS_PER_DAY
 
-GERRIT_BRANCH = gerrit.Repo('https://review.haiku-os.org/').projects['haiku'].branches['refs/heads/master']
+GERRIT_BRANCH = gerrit.Repo(config['gerrit_url']).projects[config['project']].branches['refs/heads/' + config['branch']]
 
 
 # TODO: https://review.haiku-os.org/Documentation/rest-api-changes.html#submitted-together may be interesting to know what goes with what
@@ -259,16 +260,17 @@ def remove_done_before(t):
 def remove_unused_releases():
     ditch, clean = db.unused_releases()
     for tag in ditch:
-        paths.delete_release('master', tag)
+        paths.delete_release(config['branch'], tag)
         del db.data['release'][tag]
     for tag in clean:
         for arch in db.data['release'][tag]['result']:
             if arch != '*':
-                paths.clean_up(paths.www('release', 'master', tag, arch))
+                paths.clean_up(paths.www('release', config['branch'], tag, arch))
 
 
 def remove_old_harder():
-    remove_done_before(time.time() - SECONDS_PER_DAY)
+    remove_done_before(time.time()
+        - config['keep_done_pressure'] * SECONDS_PER_DAY)
     for k, lim in (('done', 1), ('change', 3)):
         for cid, change in db.data[k].items():
             # TODO: We may be removing the only correct builds
@@ -299,15 +301,15 @@ def remove_old_harder():
 
 
 builder.mrproper()
-time_limit = time.time() + 4 * 60 * 60
+time_limit = time.time() + config['time_limit']
 while True:
     if exists('stop.please'):
         print('DDD stop requested')
         break
-    if disk_usage(paths.www_root()).free // 2**30 < 50:
+    if disk_usage(paths.www_root()).free < config['low_disk']:
         print('DDD low disk space')
         remove_old_harder()
-        if disk_usage(paths.www_root()).free // 2**30 < 50:
+        if disk_usage(paths.www_root()).free < config['low_disk']:
             break
     if builder.update_release():
         time_limit += 30 * 60
@@ -330,7 +332,7 @@ while True:
     else:
         break
 
-remove_done_before(time_limit - 10 * SECONDS_PER_DAY)
+remove_done_before(time_limit - config['keep_done'] * SECONDS_PER_DAY)
 remove_unused_releases()
 
 db.save()

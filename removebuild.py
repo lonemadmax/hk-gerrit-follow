@@ -5,6 +5,7 @@ import os
 from os.path import exists
 from shutil import rmtree
 
+from config import config
 import db
 import paths
 
@@ -44,7 +45,7 @@ def remove_master(hrev):
                 if old['picked']:
                     rmtree(paths.www(cid, old['version'], hrev, None,
                         full=False), ignore_errors=True)
-    paths.delete_release('master', hrev)
+    paths.delete_release(config['branch'], hrev)
     del db.data['release'][hrev]
                 
 

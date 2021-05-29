@@ -2,3 +2,52 @@
 # Gerrit HTTP credentials
 user=
 password=
+
+gerrit_url = https://review.haiku-os.org
+
+# Use cached results instead of new query for at least these many seconds
+gerrit_cache = 300
+
+project = haiku
+branch = master
+
+
+www_root = /var/www/haiku/testbuild
+builder_root = /home/haiku/builder
+
+worktree = %(builder_root)s/worktrees/testbuilds
+
+# Where to build the sources. A directory is created below for each arch
+build = %(builder_root)s/testbuilds
+
+# Path of compiled buildtools. Each arch in a directory below it
+buildtools = %(builder_root)s/buildtools
+
+# Installed jam
+jam = %(builder_root)s/jam
+
+site = https://example.com
+
+# link prefix to main site
+link = /testbuild
+
+# Space-separated list of architectures to build
+arches = x86_64 x86_gcc2h
+
+max_jobs = 4
+
+# Internal branch names
+branch_base = testbuild_base
+branch_rolling = testbuild
+
+
+# Days to keep data from merged/abandoned changes
+keep_done = 10
+# Days to keep data from merged/abandoned changes on low space condition
+keep_done_pressure = 1
+
+# Stop after these many seconds. Checked after builds, not a hard kill limit
+time_limit = 14000
+
+# Minimum free space in www_root device
+low_disk = 55000000000

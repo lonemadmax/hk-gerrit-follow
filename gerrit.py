@@ -4,11 +4,10 @@ import requests
 import time
 from urllib.parse import quote
 
+from config import config
+
 
 __all__ = ('Repo', 'Project', 'Branch', 'timestamp_to_time', 'post_review')
-
-
-CACHE_CHANGES = 5 * 60
 
 
 def extract_json(response):
@@ -31,7 +30,7 @@ class Branch:
         self.project = project
         self.ref = ref
         self.revision = revision
-        self._last_change = time.monotonic() - CACHE_CHANGES
+        self._last_change = time.monotonic() - config['gerrit_cache']
         self._changes = {}
 
     def update(self):
@@ -41,7 +40,7 @@ class Branch:
 
     def _update_changes(self):
         now = time.monotonic()
-        if now - self._last_change < CACHE_CHANGES:
+        if now - self._last_change < config['gerrit_cache']:
             return
 
         query = 'project:"' + self.project.name + '" branch:"' + self.ref + '"'

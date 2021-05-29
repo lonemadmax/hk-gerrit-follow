@@ -2,14 +2,12 @@ import os
 from os.path import join
 from shutil import rmtree
 
+from config import config
 import tmpfs
 
 
-_BUILDER_ROOT = '/home/haiku/builder/haiku'
-
-
 def www_root():
-    return '/var/www/haiku/testbuild'
+    return config['www_root']
 
 def www(changeset, version, master, arch, full=True):
     version = str(version)
@@ -20,7 +18,7 @@ def www(changeset, version, master, arch, full=True):
     return join(www_root(), changeset, version, master)
 
 def link_root():
-    return '/testbuild'
+    return config['link']
 
 def www_link(path):
     root = www_root()
@@ -29,16 +27,16 @@ def www_link(path):
     return link_root()
 
 def worktree():
-    return join(_BUILDER_ROOT, 'worktrees', 'haiku', 'testbuilds')
+    return config['worktree']
 
 def build(arch):
-    return join(_BUILDER_ROOT, 'builds', 'haiku', 'testbuilds', arch)
+    return join(config['build'], arch)
 
 def buildtools(arch):
-    return join(_BUILDER_ROOT, 'builds', 'buildtools', 'master', arch)
+    return join(config['buildtools'], arch)
 
 def jam():
-    return join(_BUILDER_ROOT, 'artifacts', 'buildtools', 'jam_master')
+    return config['jam']
 
 def emulated_attributes():
     return join(tmpfs.preferred_root(), 'haiku_testbuilds')

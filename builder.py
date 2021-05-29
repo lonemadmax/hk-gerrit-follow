@@ -11,6 +11,7 @@ import time
 
 from archive import archive
 import buildtools
+from config import config
 import db
 import gitutils
 from jam import jam
@@ -23,10 +24,8 @@ __all__ = ('update_release', 'build_change', 'changeset_branch_name',
     'remove_done_changes', 'mrproper')
 
 
-BRANCH_BASE = 'testbuild_base'
-BRANCH_ROLLING = 'testbuild'
-
-ARCHES = ('x86_64', 'x86_gcc2h')
+BRANCH_BASE = config['branch_base']
+BRANCH_ROLLING = config['branch_rolling']
 
 REPO = gitutils.get_repo()
 
@@ -49,7 +48,7 @@ def configure_build(wd, arch):
     command = [join(paths.worktree(), 'configure'),
         '--use-gcc-pipe', '--include-sources']
     # '--use-gcc-graphite' spits spurious maybe-uninitialized error in RAW.cpp
-    for prefix in buildtools.get_arch_prefixes('master', arch):
+    for prefix in buildtools.get_arch_prefixes(config['branch'], arch):
         command.extend(('--cross-tools-prefix', prefix))
     with open(join(wd, 'configure.log'), 'wb') as out:
         subprocess.run(command, stdout=out, stderr=subprocess.STDOUT,
@@ -101,7 +100,7 @@ def _get_msgs(tag, arch):
         return _MASTER_MSGS[arch]
     except KeyError:
         try:
-            with open(join(paths.www('release', 'master', tag, arch),
+            with open(join(paths.www('release', config['branch'], tag, arch),
                     'build-messages.json'), 'rt') as f:
                 _MASTER_MSGS[arch] = json.load(f)
         except Exception:
@@ -250,7 +249,7 @@ def _process_build(src, dst, log, title, linker, parent, result, arch):
 def _fill_empty_results(d=None):
     if d is None:
         d = {}
-    for a in ARCHES:
+    for a in config['ARCHES']:
         d[a] = {'ok': None, 'warnings': 0, 'errors': 0}
     d['*'] = {'ok': None}
     return d
@@ -266,7 +265,7 @@ def build_release():
         # Shouldn't happen?
         tag = commit.hexsha
 
-    dst = paths.www('release', 'master', tag, None)
+    dst = paths.www('release', config['branch'], tag, None)
     os.makedirs(dst, exist_ok=True)
 
     old_tag = db.data['current']
@@ -292,15 +291,15 @@ def build_release():
             # don't archive again, it takes some time
             break
     else:
-        archive(dst, 'master', tag, '')
+        archive(dst, config['branch'], tag, '')
 
-    for arch in ARCHES:
+    for arch in config['ARCHES']:
         if data_master['result'][arch]['ok'] is None:
             data_master['result'][arch]['ok'], log = build(arch, tag)
-            build_dst = paths.www('release', 'master', tag, arch)
+            build_dst = paths.www('release', config['branch'], tag, arch)
             os.makedirs(build_dst, exist_ok=True)
             _process_build(paths.build(arch), build_dst, log,
-                'master: ' + tag + ' [' + arch + ']',
+                config['branch'] + ': ' + tag + ' [' + arch + ']',
                 log_analysis.file_link_release(tag),
                 data_master['parent'], data_master['result'], arch)
             db.save()
@@ -334,7 +333,7 @@ def _build_change(cid, build_data, rebased):
         result = build_data['picked']
         tag += '_sep'
 
-    for arch in ARCHES:
+    for arch in config['ARCHES']:
         if result[arch]['ok'] is None:
             result[arch]['ok'], log = build(arch, tag)
             build_dst = paths.www(cid, version, parent, arch, rebased)
@@ -438,8 +437,8 @@ def build_change(cid):
         dst = paths.www(cid, build_data['version'], parent, None, not cherry)
         patches_dir = join(dst, 'patches')
         os.makedirs(patches_dir, exist_ok=True)
-        os.symlink(relpath(paths.www('release', 'master', parent, None),
-            start=dst), join(dst, 'master'))
+        os.symlink(relpath(paths.www('release', config['branch'], parent, None),
+            start=dst), join(dst, 'baseline'))
         if cherry:
             i = 1
             patches = []

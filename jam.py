@@ -3,6 +3,7 @@ import os.path
 import subprocess
 import tempfile
 
+from config import config
 import paths
 import subprocess_wrapper
 
@@ -13,15 +14,13 @@ __all__ = ('jam',)
 def jam(wd, target, options=None, quick=False, jam_cmd=None, output=None):
     if jam_cmd is None:
         jam_cmd = paths.jam()
-        if jam_cmd is None:
-            jam_cmd = 'jam'
     args = [jam_cmd]
 
     if quick:
         args.append('-q')
     else:
         try:
-            i = min(int(len(os.sched_getaffinity(0))/2), 4)
+            i = min(len(os.sched_getaffinity(0)), config['max_jobs'])
             if i > 1:
                 args.append('-j' + str(i))
         except:
