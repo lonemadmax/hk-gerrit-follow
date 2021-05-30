@@ -322,12 +322,12 @@ while True:
     if to_build:
         cid = to_build[0]
         builder.build_change(cid)
+        db.data['queued'] = to_build[1:]
         try:
             review(db.data['change'][cid], GERRIT_BRANCH.get_change(cid))
         except KeyError:
             pass
         if time.time() > time_limit:
-            db.data['queued'] = to_build[1:]
             break
     else:
         break
