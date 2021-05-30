@@ -134,7 +134,7 @@ def match_error_key(s):
             or 'lacks a cast' in s):
         return 'invalid-conversion'
     if s.endswith('not declared in this scope'):
-        return 'not-in-scope'
+        return 'undeclared'
     if 'declared inside parameter list' in s:
         return 'invisible-outside'
     if s.startswith('forward declaration of '):
