@@ -311,10 +311,10 @@ while True:
         remove_old_harder()
         if disk_usage(paths.www_root()).free < config['low_disk']:
             break
+    if time.time() > time_limit:
+        break
     if builder.update_release():
-        time_limit += 30 * 60
         # new build, took our time, check if there are updates again
-        # TODO: if we have a constant stream of updates, this can go on forever
         continue
     update_changes()
     to_build = sorted_changes()
@@ -327,8 +327,6 @@ while True:
             review(db.data['change'][cid], GERRIT_BRANCH.get_change(cid))
         except KeyError:
             pass
-        if time.time() > time_limit:
-            break
     else:
         break
 
