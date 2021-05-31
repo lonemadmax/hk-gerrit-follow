@@ -142,6 +142,8 @@ def match_error_key(s):
     if s.startswith(('parse error', 'expected ', 'lvalue required',
             'syntax error')):
         return 'parse'
+    if 'unterminated' in s:
+        return 'parse'
     if 'has incomplete type' in s:
         return 'incomplete-type'
     if (' has no member named ' in s or ' does not have a nested type ' in s
