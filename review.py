@@ -23,7 +23,7 @@ def _clean_msg(s):
     if (last.startswith('...failed updating ')
             and last.endswith(' target(s)...')):
         s = s[:-1]
-    return '   ' + '\n   '.join(s)
+    return '   ' + '\n   '.join(sorted(set(s)))
 
 
 def _base_review(build_result):
