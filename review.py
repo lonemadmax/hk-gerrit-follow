@@ -80,8 +80,26 @@ def review(change, gerrit_change):
 
     if ((last_review['version'] != build['version'] or not same_as_last)
             and (all_ok or not same_as_parent)):
+        # TODO: some revisions (like just changing the commit message) keep
+        # the score, and as nothing of substance for this checker has changed,
+        # we should not spam the comments with another review.
+        # We check this by comparing with current score, which is removed for
+        # code changes, but it only works because we are the only checkers.
+        try:
+            gerrit_score = gerrit_change['labels']['Verified'].keys()
+            if 'approved' in gerrit_score:
+                gerrit_score = '+1'
+            elif 'rejected' in gerrit_score:
+                gerrit_score = '-1'
+            else:
+                gerrit_score = ''
+        except KeyError:
+            gerrit_score = ''
+
         if all_ok:
             score = '+1'
+            if gerrit_score == score:
+                return
             if same_as_parent:
                 message = 'Build OK rebasing over ' + build['parent']
                 if not same_as_last:
@@ -91,6 +109,8 @@ def review(change, gerrit_change):
             message += ' [' + ', '.join(current_review.keys()) + ']'
         else:
             score = '-1'
+            if gerrit_score == score:
+                return
             message = 'FAILED build rebasing over ' + build['parent']
             msgs = [result['msg'] for result in current_review.values()]
             for msg in msgs:
