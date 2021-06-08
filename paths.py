@@ -61,7 +61,7 @@ def clean_up(path):
         for f in os.listdir(path):
             if (f in ('build.err', 'build.out', 'efi.map')
                     or f.startswith(('haiku.', 'haiku-'))
-                    or f.endswith(('.hpkg', '.iso', '.image'))):
+                    or f.endswith(('.hpkg', '.iso', '.image', '.xz'))):
                 try:
                     os.remove(join(path, f))
                 except FileNotFoundError:
