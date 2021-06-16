@@ -268,12 +268,20 @@ def remove_unused_releases():
                 paths.clean_up(paths.www('release', config['branch'], tag, arch))
 
 
+def clean_up_build(cid, build):
+    for res, full in (('rebased', True), ('picked', False)):
+        for arch in build[res]:
+            if arch != '*' and build[res][arch]:
+                paths.clean_up(paths.www(cid, build['version'],
+                    build['parent'], arch, full=full))
+    build['logs_only'] = True
+
+
 def remove_old_harder():
     remove_done_before(time.time()
         - config['keep_done_pressure'] * SECONDS_PER_DAY)
     for k, lim in (('done', 1), ('change', 3)):
         for cid, change in db.data[k].items():
-            # TODO: We may be removing the only correct builds
             try:
                 keep = change['sent_review']['parent']
             except KeyError:
@@ -290,14 +298,23 @@ def remove_old_harder():
                         rmtree(paths.www(cid, old['version'], old['parent'],
                             None, full=False), ignore_errors=True)
             for old in change['build'][:-1]:
-                for res, full in (('rebased', True), ('picked', False)):
-                    for arch in old[res]:
-                        if arch != '*' and old[res][arch]:
-                            paths.clean_up(paths.www(cid, old['version'],
-                                old['parent'], arch, full=full))
-                old['logs_only'] = True
+                clean_up_build(cid, old)
     remove_unused_releases()
     db.save()
+
+
+def remove_old_starved():
+    for cid, change in db.data['done'].items():
+        clean_up_build(cid, change['build'][-1])
+    if disk_usage(paths.www_root()).free > config['low_disk']:
+        return True
+    else:
+        for cid in sorted(db.data['change'].keys(),
+                key=lambda cid: db.data['change'][cid]['build'][-1]['time']):
+            clean_up_build(cid, db.data['change'][cid]['build'][-1])
+            if disk_usage(paths.www_root()).free > config['low_disk']:
+                return True
+    return False
 
 
 builder.mrproper()
@@ -310,7 +327,8 @@ while True:
         print('DDD low disk space')
         remove_old_harder()
         if disk_usage(paths.www_root()).free < config['low_disk']:
-            break
+            if not remove_old_starved():
+                break
     if time.time() > time_limit:
         break
     if builder.update_release():
