@@ -469,8 +469,7 @@ def build_change(cid):
                     join(dst, 'applied'))
             if len(real_patches) <= 1:
                 clean_rebase = True
-            # TODO: this check is probably unnecessary
-            if real_patches[0]:
+            if real_patches and real_patches[0]:
                 result['*'] = {'ok': True}
             else:
                 result['*'] = {
@@ -478,7 +477,7 @@ def build_change(cid):
                     'message': 'Already merged'
                 }
             db.save()
-            if real_patches[0]:
+            if result['*']['ok']:
                 _build_change(cid, build_data, not cherry)
         except git.exc.GitCommandError:
             message = []

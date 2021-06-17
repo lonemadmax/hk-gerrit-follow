@@ -50,6 +50,7 @@ def review(change, gerrit_change):
         return
     if not build['rebased']['*']:
         # TODO: maybe it is reviewed and now there are conflicts
+        # or it was merged with another change and maybe we should warn
         return
     current_review = _base_review(build['rebased'])
     if build['picked']:
