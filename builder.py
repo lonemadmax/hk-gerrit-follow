@@ -286,12 +286,13 @@ def build_release():
         # - keep what was built
         data_master = db.data['release'][old_tag]
 
-    for f in os.listdir(dst):
-        if f.startswith('src.'):
-            # don't archive again, it takes some time
-            break
-    else:
-        archive(dst, config['branch'], tag, '')
+    if config['archive_src']:
+        for f in os.listdir(dst):
+            if f.startswith('src.'):
+                # don't archive again, it takes some time
+                break
+        else:
+            archive(dst, config['branch'], tag, '')
 
     for arch in config['ARCHES']:
         if data_master['result'][arch]['ok'] is None:

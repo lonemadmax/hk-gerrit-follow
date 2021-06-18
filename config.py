@@ -27,3 +27,5 @@ for name in ('gerrit_cache', 'max_jobs', 'time_limit', 'low_disk'):
 for name in ('keep_done_pressure', 'keep_done'):
     config[name] = float(config[name])
 
+for name in ('archive_src',):
+    config[name] = config[name].lower() in ('true', 'yes', '1', 'on')

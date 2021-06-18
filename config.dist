@@ -51,3 +51,5 @@ time_limit = 14000
 
 # Minimum free space in www_root device
 low_disk = 55000000000
+
+archive_src = True
