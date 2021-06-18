@@ -67,6 +67,13 @@ def review(change, gerrit_change):
     all_ok = True
     last_review = change['sent_review']
     parent = db.data['release'][build['parent']]['result']
+
+    # Don't review arches for which we don't have a baseline
+    for arch in list(a for a in current_review.keys() if a not in parent):
+        del current_review[arch]
+    if not current_review:
+        return
+
     for arch, result in current_review.items():
         if not result['ok']:
             all_ok = False
@@ -74,33 +81,24 @@ def review(change, gerrit_change):
             same_as_last = False
             if result['ok']:
                 result['msg'] = 'fixed'
-        if arch in parent and parent[arch]['ok'] != result['ok']:
+        if parent[arch]['ok'] != result['ok']:
             same_as_parent = False
             if result['ok']:
                 result['msg'] = 'fixes ' + config['branch']
 
-    if ((last_review['version'] != build['version'] or not same_as_last)
-            and (all_ok or not same_as_parent)):
-        # TODO: some revisions (like just changing the commit message) keep
-        # the score, and as nothing of substance for this checker has changed,
-        # we should not spam the comments with another review.
-        # We check this by comparing with current score, which is removed for
-        # code changes, but it only works because we are the only checkers.
-        try:
-            gerrit_score = gerrit_change['labels']['Verified'].keys()
-            if 'approved' in gerrit_score:
-                gerrit_score = '+1'
-            elif 'rejected' in gerrit_score:
-                gerrit_score = '-1'
-            else:
-                gerrit_score = ''
-        except KeyError:
-            gerrit_score = ''
+    try:
+        # TODO: check that this is our review. Working now because there are
+        # no more checkers.
+        gerrit_score = gerrit_change['labels']['Verified'].keys()
+        if ((all_ok and 'approved' in gerrit_score)
+                or ('rejected' in gerrit_score and not all_ok)):
+            return
+    except KeyError:
+        pass
 
+    if all_ok or not same_as_parent:
         if all_ok:
             score = '+1'
-            if gerrit_score == score:
-                return
             if same_as_parent:
                 message = 'Build OK rebasing over ' + build['parent']
                 if not same_as_last:
@@ -110,8 +108,6 @@ def review(change, gerrit_change):
             message += ' [' + ', '.join(current_review.keys()) + ']'
         else:
             score = '-1'
-            if gerrit_score == score:
-                return
             message = 'FAILED build rebasing over ' + build['parent']
             msgs = [result['msg'] for result in current_review.values()]
             for msg in msgs:
