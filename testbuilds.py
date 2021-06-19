@@ -111,6 +111,7 @@ def update_changes():
 
 def sorted_changes():
     # Discard already built with same version and master
+    # Make changes with rejected label wait at least two days
     # Order:
     #   0 Master broken, no WIP, no unresolved messages, new
     #   1 Master broken, no WIP, new
@@ -123,7 +124,7 @@ def sorted_changes():
     #   8 new / new version
     #   9 rest
     #       base time: now (or time_limit, not that it matters a lot) - build time
-    #       + (update - build) if updated after build time
+    #       + k(update - build) if updated after build time
     #       half if version created more than 10? days ago
     #       half if changeset created more than 2? months ago
     #       -1 day if WIP
@@ -137,14 +138,14 @@ def sorted_changes():
     now = time.time()
     priority = [{} for i in range(10)]
     for cid, change in db.data['change'].items():
+        if (change['review'] < -1
+                and now - change['time']['version'] < 2 * SECONDS_PER_DAY):
+            continue
+
         latest = db.get_latest_build(cid)
 
         if latest is None:
             # New changeset: 0, 1, 3, 6, 8
-
-            if (change['review'] < -1
-                    and now - change['time']['version'] < 2 * SECONDS_PER_DAY):
-                continue
 
             if TAG_WIP in change['tags']:
                 if TAG_UNRESOLVED in change['tags']:
@@ -164,10 +165,6 @@ def sorted_changes():
 
         elif latest['version'] != change['version']:
             # New version: 2, 4, 5, 6, 7, 8
-
-            if (change['review'] < -1
-                    and now - change['time']['version'] < 2 * SECONDS_PER_DAY):
-                continue
 
             if (db.is_broken(latest['rebased'])
                     and ((not latest['picked'])
@@ -192,20 +189,16 @@ def sorted_changes():
 
             min_delay = KNOB_MINIMUM_DELAY
 
-            # TODO: discard changes with -2 revision points (if they are from this version)
             # better chance the oldest the last build was
             # TODO: use time of last build with a correct master build?
             weight = now - latest['time']
             # better chance for more activity
-            weight += max(0, change['time']['update'] - latest['time']) / 2
+            weight += max(0, change['time']['update'] - latest['time']) / 3
             # old version?
             if now - change['time']['version'] > KNOB_OLD_VERSION:
                 min_delay *= 2
                 if now - change['time']['version'] > 3 * KNOB_OLD_VERSION:
                     weight /= 2
-            # old changeset?
-            #if now - change['time']['create'] > KNOB_OLD_CHANGESET:
-            #    weight /= 2
             # wait more if WIP
             if TAG_WIP in change['tags']:
                 weight -= 2 * SECONDS_PER_DAY
