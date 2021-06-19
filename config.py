@@ -19,8 +19,6 @@ except KeyError:
     pass
 config['AUTH'] = AUTH
 
-config['ARCHES'] = config['arches'].split()
-
 for name in ('gerrit_cache', 'max_jobs', 'time_limit', 'low_disk'):
     config[name] = int(config[name])
 
@@ -29,3 +27,6 @@ for name in ('keep_done_pressure', 'keep_done'):
 
 for name in ('archive_src',):
     config[name] = config[name].lower() in ('true', 'yes', '1', 'on')
+
+for name in ('arches', 'save_artifacts'):
+    config[name] = config[name].split()

@@ -33,6 +33,8 @@ link = /testbuild
 
 # Space-separated list of architectures to build
 arches = x86_64 x86_gcc2h
+# And for which of them to save isos, packages, etc
+save_artifacts = x86_64 x86_gcc2h
 
 max_jobs = 4
 

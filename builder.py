@@ -209,32 +209,32 @@ def _process_build(src, dst, log, title, linker, parent, result, arch):
 
     write_log(log, join(dst, 'buildlog.html'), log_analysis.htmlout, line_msgs)
 
-    pkgs = set(result['packages'])
-    obj_dir = join(src, 'objects', 'haiku')
-    for entry in os.scandir(obj_dir):
-        if entry.is_dir():
-            pkg_dir = join(obj_dir, entry.name, 'packaging', 'packages')
-            if exists(pkg_dir):
-                for f in os.listdir(pkg_dir):
-                    # TODO: may have disappeared
-                    move(join(pkg_dir, f), dst)
-                    try:
-                        pkgs.remove(f)
-                    except KeyError:
-                        print('PKGGET UNEXPECTED', pkg_dir, f, file=sys.stderr)
-    for pkg in pkgs:
-        print('PKGGET NOTFOUND', pkg, file=sys.stderr)
+    if arch in config['save_artifacts']:
+        pkgs = set(result['packages'])
+        obj_dir = join(src, 'objects', 'haiku')
+        for entry in os.scandir(obj_dir):
+            if entry.is_dir():
+                pkg_dir = join(obj_dir, entry.name, 'packaging', 'packages')
+                if exists(pkg_dir):
+                    for f in os.listdir(pkg_dir):
+                        # TODO: may have disappeared
+                        move(join(pkg_dir, f), dst)
+                        try:
+                            pkgs.remove(f)
+                        except KeyError:
+                            print('PKGGET UNEXPECTED', pkg_dir, f, file=sys.stderr)
+        for pkg in pkgs:
+            print('PKGGET NOTFOUND', pkg, file=sys.stderr)
 
-    # TODO: efi.map? Probably not. Text with adresses, object names, etc.
-    # Maybe x86_64/objects/haiku/x86_64/release/system/boot/efi/{haiku_loader.efi,boot_loader_efi}
-    # gcc2h does not have efi.map and esp.image
-    for f in ('esp.image', 'haiku-nightly-anyboot.iso'):
-        try:
-            f = join(src, f)
-            os.chmod(f, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
-            move(f, dst)
-        except FileNotFoundError:
-            pass
+        # Maybe x86_64/objects/haiku/x86_64/release/system/boot/efi/{haiku_loader.efi,boot_loader_efi}
+        # gcc2h does not have efi.map and esp.image
+        for f in ('esp.image', 'haiku-nightly-anyboot.iso'):
+            try:
+                f = join(src, f)
+                os.chmod(f, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
+                move(f, dst)
+            except FileNotFoundError:
+                pass
 
     result['packages'] = list(result['packages'])
 
@@ -249,7 +249,7 @@ def _process_build(src, dst, log, title, linker, parent, result, arch):
 def _fill_empty_results(d=None):
     if d is None:
         d = {}
-    for a in config['ARCHES']:
+    for a in config['arches']:
         d[a] = {'ok': None, 'warnings': 0, 'errors': 0}
     d['*'] = {'ok': None}
     return d
@@ -294,7 +294,7 @@ def build_release():
         else:
             archive(dst, config['branch'], tag, '')
 
-    for arch in config['ARCHES']:
+    for arch in config['arches']:
         if data_master['result'][arch]['ok'] is None:
             data_master['result'][arch]['ok'], log = build(arch, tag)
             build_dst = paths.www('release', config['branch'], tag, arch)
@@ -334,7 +334,7 @@ def _build_change(cid, build_data, rebased):
         result = build_data['picked']
         tag += '_sep'
 
-    for arch in config['ARCHES']:
+    for arch in config['arches']:
         if result[arch]['ok'] is None:
             result[arch]['ok'], log = build(arch, tag)
             build_dst = paths.www(cid, version, parent, arch, rebased)
