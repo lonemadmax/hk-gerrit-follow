@@ -33,14 +33,12 @@ def set_change_info(cid, info):
         builds = data['change'][cid]['build']
     except KeyError:
         builds = []
-    # TODO: debug
     try:
         review = data['change'][cid]['sent_review']
     except KeyError:
         review = {'version': -1}
     data['change'][cid] = info
     data['change'][cid]['build'] = builds
-    # TODO: debug
     data['change'][cid]['sent_review'] = review
     try:
         del data['done'][cid]

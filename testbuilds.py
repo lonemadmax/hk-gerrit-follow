@@ -241,9 +241,6 @@ def sorted_changes():
                 continue
             priority[9][cid] = (change['review'], weight)
 
-        # TODO: half done builds
-        # Not worth it? We'll soon get a new release
-
         # else no changes, continue
 
     queue = []
