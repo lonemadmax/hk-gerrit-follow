@@ -23,7 +23,11 @@ def _clean_msg(s):
     if (last.startswith('...failed updating ')
             and last.endswith(' target(s)...')):
         s = s[:-1]
-    return '   ' + '\n   '.join(sorted(set(s)))
+    s = '   ' + '\n   '.join(sorted(set(s)))
+    if len(s) > 1400:
+        s = '   Too many errors to list here'
+    return s
+
 
 
 def _base_review(build_result):
