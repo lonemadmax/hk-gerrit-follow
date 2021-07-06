@@ -75,7 +75,7 @@ def match_error_key(s):
     if s.startswith('pointer of type ') and s.endswith(' used in arithmetic'):
         return 'pointer-arith'
     if s.startswith(('integer overflow in expression',
-            'large integer implicitly truncated')):
+            'large integer implicitly truncated')) or 'out of range' in s:
         return 'overflow'
     if s.endswith(' redefined'):
         return 'cpp-redefine'
