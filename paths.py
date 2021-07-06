@@ -66,6 +66,10 @@ def clean_up(path):
                     os.remove(join(path, f))
                 except FileNotFoundError:
                     pass
+        try:
+            os.remove(join(path, 'build', 'haiku-revision'))
+        except FileNotFoundError:
+            pass
     except FileNotFoundError:
         pass
 
