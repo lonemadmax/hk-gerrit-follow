@@ -80,6 +80,11 @@ def review(change, gerrit_change):
 
     for arch, result in current_review.items():
         if not result['ok']:
+            if 'DownloadLocatedFile' in result['msg']:
+                # TODO: this might be a reference to something that doesn't
+                # exist (I haven't checked), but I prefer not to spam gerrit
+                # when it's just a temporary failure
+                return
             all_ok = False
         if arch in last_review and last_review[arch]['ok'] != result['ok']:
             same_as_last = False
