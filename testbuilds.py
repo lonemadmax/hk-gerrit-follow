@@ -295,11 +295,13 @@ def remove_old_harder():
 
 def remove_old_starved():
     for cid, change in db.data['done'].items():
-        clean_up_build(cid, change['build'][-1])
+        if change['build']:
+            clean_up_build(cid, change['build'][-1])
     if disk_usage(paths.www_root()).free > config['low_disk']:
         return True
     else:
-        for cid in sorted(db.data['change'].keys(),
+        for cid in sorted((k for k, v in db.data['change'].items()
+                    if v['build']),
                 key=lambda cid: db.data['change'][cid]['build'][-1]['time']):
             clean_up_build(cid, db.data['change'][cid]['build'][-1])
             if disk_usage(paths.www_root()).free > config['low_disk']:
