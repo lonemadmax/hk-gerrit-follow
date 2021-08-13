@@ -85,7 +85,8 @@ def match_error_key(s):
         return 'discarded-qualifiers'
     if s.endswith(' from incompatible pointer type'):
         return 'incompatible-pointer-types'
-    if s.endswith(' makes pointer from integer without a cast'):
+    if s.endswith((' makes pointer from integer without a cast',
+            'makes integer from pointer without a cast')):
         return 'int-conversion'
     if s.endswith(")' defined but not used"):
         return 'unused-function'
@@ -130,10 +131,10 @@ def match_error_key(s):
         return 'unmatched-type'
     if s.startswith('invalid use of undefined type'):
         return 'undefined-type'
-    if (s.startswith('invalid conversion') or 'cannot convert' in s
-            or 'lacks a cast' in s):
+    if (s.startswith(('invalid conversion', 'argument passing to'))
+            or 'cannot convert' in s or 'lacks a cast' in s):
         return 'invalid-conversion'
-    if s.endswith('not declared in this scope'):
+    if s.endswith('not declared in this scope') or ' undeclared ' in s:
         return 'undeclared'
     if 'declared inside parameter list' in s:
         return 'invisible-outside'
@@ -176,6 +177,8 @@ def match_error_key(s):
         return 'switch'
     if s.startswith('too many arguments'):
         return 'extra-args'
+    if s.startswith('aggregate has a partly bracketed initializer'):
+        return 'initializer'
     return s
 
 
