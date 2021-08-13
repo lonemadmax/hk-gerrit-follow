@@ -1,3 +1,6 @@
+import json
+import os
+from os.path import join
 import re
 
 from config import config
@@ -42,6 +45,85 @@ def _base_review(build_result):
         if not result['ok']:
             review[arch]['msg'] = _clean_msg(result['message'])
     return review
+
+
+def _new_messages(cid, build, arch):
+    messages = []
+    path = join(paths.www(cid, build['version'], build['parent'], arch),
+        'new-messages.json')
+    try:
+        with open(path, 'rt') as f:
+            data = json.load(f)
+        for k, v in data.items():
+            for m in v:
+                messages.append((k, m[1], m[2]))
+        messages.sort()
+    except:
+        pass
+    return messages
+
+
+def _list_new_messages(messages):
+    limit = 1400
+    s = []
+    for m in messages:
+        if limit < 0:
+            s.append('...')
+            break
+        limit -= len(m)
+        s.append(m)
+    return '\n'.join(s)
+
+
+def _format_new_messages(messages):
+    if not messages:
+        return ''
+    n = 0
+    empty = set()
+    for arch, m in messages.items():
+        if m:
+            n += 1
+        else:
+            empty.add(arch)
+    for arch in empty:
+        del messages[arch]
+    if n == 0:
+        return ''
+    if n == 1:
+        return (next(iter(messages.keys())) + ':\n'
+            + _list_new_messages((file + ':' + str(line) + ':' + warning
+                for file, line, warning in next(iter(messages.values())))))
+    repeated = set()
+    keys = {}
+    for arch, v in messages.items():
+        ikeys = set()
+        keys[arch] = ikeys
+        k_prev = ''
+        for i, m in enumerate(v):
+            k_cur = m[0] + ':' + str(m[1]) + ':'
+            if k_cur == k_prev:
+                repeated.add(k_cur)
+            k_prev = k_cur
+            ikeys.add(k_cur)
+            v[i] = (k_cur, m[2])
+    common = set()
+    for v in keys.values():
+        common |= v
+    common -= repeated
+    for v in keys.values():
+        common &= v
+    s = []
+    if common:
+        s.append('all:')
+        s.append(_list_new_messages((k + m
+            for k, m in next(iter(messages.values())) if k in common)))
+    for arch, v in messages.items():
+        w = _list_new_messages((k + m for k, m in v if k not in common))
+        if w:
+            s.append('')
+            s.append(arch + ':')
+            s.append(w)
+    return '\n'.join(s)
 
 
 def review(change, gerrit_change):
@@ -106,15 +188,29 @@ def review(change, gerrit_change):
         pass
 
     if all_ok or not same_as_parent:
+        includes_warnings = False
+        cid = gerrit_change['change_id']
         if all_ok:
             score = '+1'
             if same_as_parent:
-                message = 'Build OK rebasing over ' + build['parent']
+                warnings = {arch: _new_messages(cid, build, arch)
+                    for arch in current_review.keys()}
+                n_warnings = max((len(m) for m in warnings.values()))
+                if n_warnings:
+                    message = ('Build OK with ' + str(n_warnings)
+                        + ' new problems rebasing over ' + build['parent'])
+                else:
+                    message = 'Build OK rebasing over ' + build['parent']
                 if not same_as_last:
                     message += ', fixes previous version'
             else:
+                warnings = None
                 message = 'Build FIXES ' + build['parent']
             message += ' [' + ', '.join(current_review.keys()) + ']'
+            warnings = _format_new_messages(warnings)
+            if warnings:
+                includes_warnings = True
+                message += '\n\n' + warnings
         else:
             score = '-1'
             message = 'FAILED build rebasing over ' + build['parent']
@@ -124,7 +220,16 @@ def review(change, gerrit_change):
                     for arch, result in current_review.items():
                         message += '\n\n' + arch + ': '
                         if result['ok']:
-                            message += result['msg']
+                            warnings = _new_messages(cid, build, arch)
+                            if warnings:
+                                includes_warnings = True
+                                message += ('OK, with ' + str(len(warnings))
+                                    + ' new problems\n'
+                                    + _list_new_messages((file + ':'
+                                        + str(line) + ':' + warning
+                                        for file, line, warning in warnings)))
+                            else:
+                                message += result['msg']
                         elif (arch in last_review
                                 and last_review[arch]['msg'] == result['msg']):
                             message += 'still broken'
@@ -135,8 +240,12 @@ def review(change, gerrit_change):
                 message += ' [' + ', '.join(current_review.keys()) + ']'
                 message += '\n\n' + list(current_review.values())[0]['msg']
         message += ('\n\n' + config['site'] + paths.www_link(
-            paths.www(gerrit_change['change_id'], build['version'],
-            build['parent'], None)))
+            paths.www(cid, build['version'], build['parent'], None)))
+        if includes_warnings:
+            message += ('\nLine numbers are of rebased code, which may not '
+                'match the ones in the patch. Warnings may also come from '
+                'ancestor patches or be detected in macro definition instead '
+                ' of uses. The full log provides a bit more context.')
         try:
             gerrit.post_review(gerrit_change, {
                 'message': message,
