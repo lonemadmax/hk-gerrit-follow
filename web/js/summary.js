@@ -114,7 +114,7 @@
         .then(values => {
             const view = document.createElement('msg-view');
             view.setMessages(values[0], values[1], path + '/',
-                externalFilePath(build, ''));
+                (f, n) => externalFilePath(build, f, n));
             button.parentNode.replaceChild(view, button);
         })
         ;

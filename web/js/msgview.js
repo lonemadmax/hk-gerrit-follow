@@ -176,8 +176,8 @@
                         const li = document.createElement('li');
                         li.classList.add(imsg.error ? 'error' : 'warning');
                         if (imsg.line) {
-                            li.appendChild(textLink(this._baseExternal
-                                + imsg.file + '#' + imsg.line,
+                            li.appendChild(textLink(
+                                this._baseExternal(imsg.file, imsg.line),
                                 'line ' + imsg.line));
                             li.appendChild(text(': '));
                         }
