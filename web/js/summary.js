@@ -398,24 +398,28 @@
             const expandCell = text('td', change.queue ?? '');
             tr.appendChild(expandCell);
             let age = 'age1';
+            let current = false;
             if (change.build.length > 0) {
                 if (change.build.length > 1) {
                     expandCell.appendChild(changesetBuildsTable(change));
                 }
                 const lastbuild = change.build[0];
-                tr.appendChild(text('td', app.util.timeString(lastbuild.time)));
-                const parent = lastbuild.parent;
-                const parentCell = compose('td',
-                    textLink(releaseBasePath(parent.tag), parent.tag));
-                    //textLink('#'+parent.tag, parent.tag));
-                parentCell.classList.add('age'+parent.age);
-                tr.appendChild(parentCell);
-                tr.appendChild(compose('td',
-                    changesetStateFragment(k, lastbuild)));
                 if (lastbuild.version == change.version) {
                     age = 'age0';
+                    current = true;
+                    tr.appendChild(text('td',
+                        app.util.timeString(lastbuild.time)));
+                    const parent = lastbuild.parent;
+                    const parentCell = compose('td',
+                        textLink(releaseBasePath(parent.tag), parent.tag));
+                        //textLink('#'+parent.tag, parent.tag));
+                    parentCell.classList.add('age'+parent.age);
+                    tr.appendChild(parentCell);
+                    tr.appendChild(compose('td',
+                        changesetStateFragment(k, lastbuild)));
                 }
-            } else {
+            }
+            if (!current) {
                 tr.appendChild(text('td', ''));
                 tr.appendChild(text('td', ''));
                 tr.appendChild(text('td', ''));
