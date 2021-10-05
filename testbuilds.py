@@ -111,7 +111,7 @@ def update_changes():
 
 def sorted_changes():
     # Discard already built with same version and master
-    # Make changes with rejected label wait at least two days
+    # Make changes with rejected label wait at least two days, unless they have a new version
     # Order:
     #   0 Master broken, no WIP, no unresolved messages, new
     #   1 Master broken, no WIP, new
@@ -138,14 +138,14 @@ def sorted_changes():
     now = time.time()
     priority = [{} for i in range(10)]
     for cid, change in db.data['change'].items():
-        if (change['review'] < -1
-                and now - change['time']['version'] < 2 * SECONDS_PER_DAY):
-            continue
-
         latest = db.get_latest_build(cid)
 
         if latest is None:
             # New changeset: 0, 1, 3, 6, 8
+
+            if (change['review'] < -1
+                    and now - change['time']['version'] < 2 * SECONDS_PER_DAY):
+                continue
 
             if TAG_WIP in change['tags']:
                 if TAG_UNRESOLVED in change['tags']:
