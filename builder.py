@@ -228,7 +228,7 @@ def _process_build(src, dst, log, title, linker, parent, result, arch):
 
         # Maybe x86_64/objects/haiku/x86_64/release/system/boot/efi/{haiku_loader.efi,boot_loader_efi}
         # gcc2h does not have efi.map and esp.image
-        for f in ('esp.image', 'haiku-nightly-anyboot.iso'):
+        for f in ('esp.image', 'haiku-nightly-anyboot.iso', 'haiku-mmc.image'):
             try:
                 f = join(src, f)
                 os.chmod(f, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
