@@ -180,6 +180,10 @@ def review(change, gerrit_change):
     try:
         # TODO: check that this is our review. Working now because there are
         # no more checkers.
+        # TODO: rejected (previous) and not OK (current) may have different
+        # failures, in particular may change result per arch
+        # TODO: current OK, parent FAIL, last OK but its parent didn't fail:
+        # this one fixes master. And the other way around. Maybe never say it?
         gerrit_score = gerrit_change['labels']['Verified'].keys()
         if ((all_ok and 'approved' in gerrit_score)
                 or ('rejected' in gerrit_score and not all_ok)):
@@ -187,77 +191,98 @@ def review(change, gerrit_change):
     except KeyError:
         pass
 
-    if all_ok or not same_as_parent:
-        includes_warnings = False
-        cid = gerrit_change['change_id']
-        if all_ok:
-            score = '+1'
-            if same_as_parent:
-                warnings = {arch: _new_messages(cid, build, arch)
-                    for arch in current_review.keys()}
-                n_warnings = max((len(m) for m in warnings.values()))
-                if n_warnings:
-                    message = ('Build OK with ' + str(n_warnings)
-                        + ' new problems rebasing over ' + build['parent'])
-                else:
-                    message = 'Build OK rebasing over ' + build['parent']
-                if not same_as_last:
-                    message += ', fixes previous version'
+    if same_as_parent and not all_ok:
+        # TODO: check changes in errors
+        return
+
+    includes_warnings = False
+    cid = gerrit_change['change_id']
+    if all_ok:
+        score = '+1'
+        if same_as_parent:
+            warnings = {arch: _new_messages(cid, build, arch)
+                for arch in current_review.keys()}
+            n_warnings = max((len(m) for m in warnings.values()))
+            if n_warnings:
+                message = ('Build OK with ' + str(n_warnings)
+                    + ' new problems rebasing over ' + build['parent'])
             else:
-                warnings = None
-                message = 'Build FIXES ' + build['parent']
-            message += ' [' + ', '.join(current_review.keys()) + ']'
-            warnings = _format_new_messages(warnings)
-            if warnings:
-                includes_warnings = True
-                message += '\n\n' + warnings
+                message = 'Build OK rebasing over ' + build['parent']
+            if not same_as_last:
+                message += ', fixes previous version'
         else:
-            score = '-1'
-            message = 'FAILED build rebasing over ' + build['parent']
-            msgs = [result['msg'] for result in current_review.values()]
-            for msg in msgs:
-                if msg != msgs[0]:
-                    for arch, result in current_review.items():
-                        message += '\n\n' + arch + ': '
-                        if result['ok']:
-                            warnings = _new_messages(cid, build, arch)
-                            if warnings:
-                                includes_warnings = True
-                                message += ('OK, with ' + str(len(warnings))
-                                    + ' new problems\n'
-                                    + _list_new_messages((file + ':'
-                                        + str(line) + ':' + warning
-                                        for file, line, warning in warnings)))
-                            else:
-                                message += result['msg']
-                        elif (arch in last_review
-                                and last_review[arch]['msg'] == result['msg']):
-                            message += 'still broken'
-                        else:
-                            message += '\n\n' + result['msg']
-                    break
+            warnings = None
+            message = 'Build FIXES ' + build['parent']
+        message += ' [' + ', '.join(current_review.keys()) + ']'
+        warnings = _format_new_messages(warnings)
+        if warnings:
+            includes_warnings = True
+            message += '\n\n' + warnings
+    else:
+        score = '-1'
+        message = 'FAILED build rebasing over ' + build['parent']
+        arch_msg = ({}, {})
+
+        for arch, result in current_review.items():
+            dest = arch_msg[0]
+            if result['ok']:
+                dest = arch_msg[1]
+                warnings = _new_messages(cid, build, arch)
+                if warnings:
+                    includes_warnings = True
+                    arch_message = ('OK, with ' + str(len(warnings))
+                        + ' new problems\n' + _list_new_messages((file + ':'
+                            + str(line) + ':' + warning
+                            for file, line, warning in warnings)))
+                else:
+                    arch_message = 'OK'
+                if result['msg'] != 'OK':
+                    arch = arch + ' (' + result['msg'] + ')'
             else:
-                message += ' [' + ', '.join(current_review.keys()) + ']'
-                message += '\n\n' + list(current_review.values())[0]['msg']
-        message += ('\n\n' + config['site'] + paths.www_link(
-            paths.www(cid, build['version'], build['parent'], None)))
-        if includes_warnings:
-            message += ('\nLine numbers are of rebased code, which may not '
-                'match the ones in the patch. Warnings may also come from '
-                'ancestor patches or be detected in macro definition instead '
-                ' of uses. The full log provides a bit more context.')
-        try:
-            gerrit.post_review(gerrit_change, {
-                'message': message,
-                'tag': 'autogenerated:buildbot',
-                'labels': {'Verified': score},
-                'notify': 'NONE',
-                'omit_duplicate_comments': True
-            }, config['AUTH'])
-            current_review['version'] = build['version']
-            current_review['parent'] = build['parent']
-            change['sent_review'] = current_review
-            db.save()
-        except Exception:
-            pass
+                if (arch in last_review
+                        and last_review[arch]['msg'] == result['msg']):
+                    arch_message = 'still broken'
+                else:
+                    arch_message = '\n\n' + result['msg']
+                if not parent[arch]['ok']:
+                    arch = arch + ' (' + build['parent'] + ' also broken)'
+
+            try:
+                dest[arch_message].append(arch)
+            except KeyError:
+                dest[arch_message] = [arch]
+
+        if arch_msg[0]:
+            failed = []
+            for arch_list in arch_msg[0].values():
+                failed.extend(arch_list)
+            message += ' [' + ', '.join(sorted(failed)) + ']'
+            if len(arch_msg[0]) == 1:
+                message += list(arch_msg[0].keys())[0]
+                arch_msg[0].clear()
+        for msg_type in arch_msg:
+            for msg, arches in msg_type.items():
+                message += '\n\n' + ', '.join(sorted(arches)) + ': ' + msg
+
+    message += ('\n\n' + config['site'] + paths.www_link(
+        paths.www(cid, build['version'], build['parent'], None)))
+    if includes_warnings:
+        message += ('\nLine numbers are of rebased code, which may not '
+            'match the ones in the patch. Warnings may also come from '
+            'ancestor patches or be detected in macro definition instead '
+            ' of uses. The full log provides a bit more context.')
+    try:
+        gerrit.post_review(gerrit_change, {
+            'message': message,
+            'tag': 'autogenerated:buildbot',
+            'labels': {'Verified': score},
+            'notify': 'NONE',
+            'omit_duplicate_comments': True
+        }, config['AUTH'])
+        current_review['version'] = build['version']
+        current_review['parent'] = build['parent']
+        change['sent_review'] = current_review
+        db.save()
+    except Exception:
+        pass
 
