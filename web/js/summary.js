@@ -107,7 +107,7 @@
             build = builds.release[change[0]];
         }
         Promise.all([app.util.fetchJSON(path + '/build-result.json'),
-            build.parent
+            build.parent && build.parent.result[arch] !== undefined
             ? app.util.fetchJSON(releaseBasePath(build.parent.tag)
                 + '/' + arch + '/build-result.json')
             : {warnings: {}, errors: {}, messages: [], files: []}])
@@ -166,7 +166,7 @@
         const e = [res.errors, ' errors'];
         if (build.parent) {
             const pres = build.parent.result;
-            if (pres['*'].ok) {
+            if (pres['*'].ok && pres[arch] !== undefined) {
                 _appendCountDiff(w, res.warnings - pres[arch].warnings);
                 _appendCountDiff(e, res.errors - pres[arch].errors);
             }
