@@ -114,6 +114,7 @@ def _format_new_messages(messages):
         common &= v
     s = []
     if common:
+        # TODO: this 'all' does not include arches built with no warnings
         s.append('all:')
         s.append(_list_new_messages((k + m
             for k, m in next(iter(messages.values())) if k in common)))
@@ -270,7 +271,7 @@ def review(change, gerrit_change):
         message += ('\nLine numbers are of rebased code, which may not '
             'match the ones in the patch. Warnings may also come from '
             'ancestor patches or be detected in macro definition instead '
-            ' of uses. The full log provides a bit more context.')
+            'of uses. The full log provides a bit more context.')
     try:
         gerrit.post_review(gerrit_change, {
             'message': message,
