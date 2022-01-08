@@ -139,7 +139,7 @@ def review(change, gerrit_change):
         # or it was merged with another change and maybe we should warn
         return
     current_review = _base_review(build['rebased'])
-    if build['picked']:
+    if build['picked'] and build['picked']['*']['ok']:
         picked_review = _base_review(build['picked'])
         if picked_review != current_review:
             # TODO: maybe it is reviewed and now there are differences
