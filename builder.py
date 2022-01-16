@@ -72,10 +72,11 @@ def build(arch, tag):
 
     if not exists(join(path, 'build', 'BuildConfig')):
         configure_build(path, arch)
-    res, fname = jam(path, '@nightly-anyboot', options=(
-            '-sHAIKU_REVISION='+tag,
-            '-sHAIKU_BUILD_ATTRIBUTES_DIR='+paths.emulated_attributes(),
-            '-sHAIKU_IMAGE_SIZE=900'),
+
+    options = ['-sHAIKU_REVISION='+tag,
+        '-sHAIKU_BUILD_ATTRIBUTES_DIR='+paths.emulated_attributes()]
+    options.extend(config['arches'][arch]['jam_options'])
+    res, fname = jam(path, config['arches'][arch]['target'], options,
         jam_cmd=paths.jam(), output=join(path, 'build.out'))
     remove_emulated_attributes()
     with open(fname, 'rt') as logf:
@@ -209,7 +210,7 @@ def _process_build(src, dst, log, title, linker, parent, result, arch):
 
     write_log(log, join(dst, 'buildlog.html'), log_analysis.htmlout, line_msgs)
 
-    if arch in config['save_artifacts']:
+    if config['arches'][arch]['save_artifacts']:
         pkgs = set(result['packages'])
         obj_dir = join(src, 'objects', 'haiku')
         for entry in os.scandir(obj_dir):
@@ -249,7 +250,7 @@ def _process_build(src, dst, log, title, linker, parent, result, arch):
 def _fill_empty_results(d=None):
     if d is None:
         d = {}
-    for a in config['arches']:
+    for a in config['arches'].keys():
         d[a] = {'ok': None, 'warnings': 0, 'errors': 0}
     d['*'] = {'ok': None}
     return d
@@ -294,7 +295,7 @@ def build_release():
         else:
             archive(dst, config['branch'], tag, '')
 
-    for arch in config['arches']:
+    for arch in config['arches'].keys():
         if data_master['result'][arch]['ok'] is None:
             data_master['result'][arch]['ok'], log = build(arch, tag)
             build_dst = paths.www('release', config['branch'], tag, arch)
@@ -334,7 +335,7 @@ def _build_change(cid, build_data, rebased):
         result = build_data['picked']
         tag += '_sep'
 
-    for arch in config['arches']:
+    for arch in config['arches'].keys():
         if result[arch]['ok'] is None:
             result[arch]['ok'], log = build(arch, tag)
             build_dst = paths.www(cid, version, parent, arch, rebased)

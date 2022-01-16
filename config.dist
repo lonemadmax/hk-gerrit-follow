@@ -1,4 +1,4 @@
-[DEFAULT]
+[Builder]
 # Gerrit HTTP credentials
 user=
 password=
@@ -31,11 +31,6 @@ site = https://example.com
 # link prefix to main site
 link = /testbuild
 
-# Space-separated list of architectures to build
-arches = x86_64 x86_gcc2h
-# And for which of them to save isos, packages, etc
-save_artifacts = x86_64 x86_gcc2h
-
 max_jobs = 4
 
 # Internal branch names
@@ -55,3 +50,28 @@ time_limit = 14000
 low_disk = 55000000000
 
 archive_src = True
+
+
+[DEFAULT]
+# Default job parameters
+
+# Whether to save isos, packages, etc
+save_artifacts = True
+
+jam_options = 
+active = True
+
+
+[x86_64]
+arch = x86_64
+target = @nightly-anyboot
+jam_options = -sHAIKU_IMAGE_SIZE=875
+
+[x86_gcc2h]
+arch = x86_gcc2h
+target = @nightly-anyboot
+jam_options = -sHAIKU_IMAGE_SIZE=920
+
+[riscv]
+arch = riscv64
+target = @minimum-mmc

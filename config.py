@@ -4,10 +4,10 @@ import configparser
 __all__ = ('config')
 
 
-config = configparser.ConfigParser()
+ini = configparser.ConfigParser()
 with open('config.ini', 'rt') as f:
-    config.read_file(f)
-config = dict(config['DEFAULT'])
+    ini.read_file(f)
+config = dict(ini['Builder'])
 
 AUTH = None
 try:
@@ -26,7 +26,20 @@ for name in ('keep_done_pressure', 'keep_done'):
     config[name] = float(config[name])
 
 for name in ('archive_src',):
-    config[name] = config[name].lower() in ('true', 'yes', '1', 'on')
+    config[name] = ini['Builder'].getboolean(name)
 
-for name in ('arches', 'save_artifacts'):
-    config[name] = config[name].split()
+config['arches'] = {}
+for name in ini.sections():
+    if name == 'Builder':
+        continue
+    if not ini[name].getboolean('active'):
+        continue
+    job = dict(ini[name])
+    for optname in ('save_artifacts',):
+        job[optname] = ini[name].getboolean(optname)
+    # TODO: quoted spaces
+    job['jam_options'] = job['jam_options'].split()
+    config['arches'][job['arch']] = job
+
+del ini, name, optname, job
+
