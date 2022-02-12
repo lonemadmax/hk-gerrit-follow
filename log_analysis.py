@@ -263,6 +263,14 @@ def itemize(f):
             # TODO?
             #wget: unable to resolve host address ‘eu.hpkg.haiku-os.org’
             yield ('ERR', lineno, ('connection', 0, None, line, 'timeout'))
+        elif 'yntax error' in line:
+            i = line.find('yntax error')
+            colon = line.find(':', 0, i)
+            if colon > 0:
+                origin = line[:colon]
+            else:
+                origin = '?'
+            yield ('ERR', lineno, (origin, 0, None, line, line[i+13]))
         else:
             match = RE_COMPILER_MSG2.match(line)
             if match:
