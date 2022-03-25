@@ -55,6 +55,13 @@ def configure_build(wd, arch):
             check=True, cwd=wd)
 
 
+def configure_build_update(wd):
+    command = [join(paths.worktree(), 'configure'), '--update']
+    with open(join(wd, 'configure.log'), 'wb') as out:
+        subprocess.run(command, stdout=out, stderr=subprocess.STDOUT,
+            check=True, cwd=wd)
+
+
 def build(arch, tag):
     remove_emulated_attributes()
     path = paths.build(arch)
@@ -72,6 +79,8 @@ def build(arch, tag):
 
     if not exists(join(path, 'build', 'BuildConfig')):
         configure_build(path, arch)
+    else:
+        configure_build_update(path)
 
     options = ['-sHAIKU_REVISION='+tag,
         '-sHAIKU_BUILD_ATTRIBUTES_DIR='+paths.emulated_attributes()]
