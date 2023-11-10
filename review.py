@@ -242,7 +242,7 @@ def review(change, gerrit_change):
             else:
                 if (arch in last_review
                         and last_review[arch]['msg'] == result['msg']):
-                    arch_message = 'still broken'
+                    arch_message = ' still broken'
                 else:
                     arch_message = '\n\n' + result['msg']
                 if not parent[arch]['ok']:
