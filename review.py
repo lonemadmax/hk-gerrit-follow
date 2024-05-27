@@ -140,11 +140,6 @@ def review(change, gerrit_change):
         # or it was merged with another change and maybe we should warn
         return
     current_review = _base_review(build['rebased'])
-    if build['picked'] and build['picked']['*']['ok']:
-        picked_review = _base_review(build['picked'])
-        if picked_review != current_review:
-            # TODO: maybe it is reviewed and now there are differences
-            return
     rev_info = gerrit_change['revisions'][gerrit_change['current_revision']]
     if build['version'] != rev_info['_number']:
         return
@@ -196,6 +191,19 @@ def review(change, gerrit_change):
         # TODO: check changes in errors
         return
 
+    picked_review = None
+    if build['picked'] and build['picked']['*']['ok']:
+        picked_review = _base_review(build['picked'])
+        for arch, result in list(picked_review.items()):
+            if arch not in parent or 'DownloadLocatedFile' in result['msg']:
+                del picked_review[arch]
+            elif not result['ok']:
+                picked_review = False
+                break
+        if (picked_review is not False
+                and picked_review.keys() == current_review.keys()):
+            picked_review = True
+
     includes_warnings = False
     cid = gerrit_change['change_id']
     if all_ok:
@@ -215,6 +223,8 @@ def review(change, gerrit_change):
             warnings = None
             message = 'Build FIXES ' + build['parent']
         message += ' [' + ', '.join(current_review.keys()) + ']'
+        if picked_review is False:
+            message += ', but cannot be cherry-picked'
         warnings = _format_new_messages(warnings)
         if warnings:
             includes_warnings = True
@@ -222,6 +232,8 @@ def review(change, gerrit_change):
     else:
         score = '-1'
         message = 'FAILED build rebasing over ' + build['parent']
+        if picked_review is True:
+            message += ', but can be cherry-picked'
         arch_msg = ({}, {})
 
         for arch, result in current_review.items():
