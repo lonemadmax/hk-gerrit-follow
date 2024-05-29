@@ -31,6 +31,22 @@ class Change(dict):
         except IndexError:
             return None
 
+    def broken_for(self, job):
+        # TODO: probably unnecessary, and we are using db.data
+        try:
+            broken = [0] * (self['version'] + 1)
+            for build in reversed(self['build']):
+                if (build['rebased'][job]['ok']
+                        or (build['picked'] and build['picked'][job]['ok'])):
+                    return build, broken
+                elif data['release'][build['parent']]['result'][job]['ok']:
+                    # TODO: maybe only count None if the prev real build is False?
+                    broken[build['version']] += 1
+            return None, broken
+        except KeyError:
+            pass
+        return None, None
+
 
 def load():
     global data
@@ -88,24 +104,6 @@ def is_broken(arch):
             # Also when None (not built)
             return k
     return False
-
-
-def broken_for(cid, arches):
-    try:
-        broken = [0] * (data['change'][cid]['version'] + 1)
-        for build in reversed(data['change'][cid]['build']):
-            if (all(build['rebased'][arch]['ok'] for arch in arches)
-                    or (build['picked'] and all(build['picked'][arch]['ok']
-                        for arch in arches))):
-                return build, broken
-            elif (all(data['release'][build['parent']]['result'][arch]['ok']
-                    for arch in arches)):
-                # TODO: maybe only count None if the prev real build is False?
-                broken[build['version']] += 1
-        return None, broken
-    except KeyError:
-        pass
-    return None, None
 
 
 def unused_releases():

@@ -210,14 +210,14 @@ def sorted_changes():
                         or db.is_broken(latest['picked']))):
                 weight += 2 * SECONDS_PER_DAY
             # but not always
-            last_ok, broken = db.broken_for(cid, ('*',))
+            last_ok, broken = change.broken_for('*')
             if broken and broken[-1] > 2:
                 weight -= (sum(broken) - 2) * SECONDS_PER_DAY
             penalty = []
             for arch in latest['rebased']:
                 if arch == '*':
                     continue
-                last_ok, broken = db.broken_for(cid, (arch,))
+                last_ok, broken = change.broken_for(arch)
                 if broken and broken[-1] > 2:
                     penalty.append(sum(broken) - 2)
                 else:
