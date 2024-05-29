@@ -139,7 +139,7 @@ def sorted_changes():
     now = time.time()
     priority = [{} for i in range(10)]
     for cid, change in db.data['change'].items():
-        latest = db.get_latest_build(cid)
+        latest = change.latest_build()
 
         if latest is None:
             # New changeset: 0, 1, 3, 6, 8

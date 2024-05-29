@@ -7,7 +7,7 @@ import paths
 
 
 __all__ = ('data', 'load', 'save', 'set_change_info', 'set_change_done',
-    'get_latest_build', 'is_broken', 'unused_releases', 'Change')
+    'is_broken', 'unused_releases', 'Change')
 
 _DATAFILE = join(paths.www_root(), 'builds.json')
 _BACKUP = _DATAFILE + '.bck'
@@ -20,6 +20,12 @@ class Change(dict):
             self['build'] = []
         if not 'sent_review' in self:
             self['sent_review'] = {'version': -1}
+
+    def latest_build(self):
+        try:
+            return self['build'][-1]
+        except IndexError:
+            return None
 
 
 def load():
@@ -67,13 +73,6 @@ def set_change_done(cid):
         data['queued'].remove(cid)
     except ValueError:
         pass
-
-
-def get_latest_build(cid):
-    try:
-        return data['change'][cid]['build'][-1]
-    except (KeyError, IndexError):
-        return None
 
 
 def is_broken(arch):

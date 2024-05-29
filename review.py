@@ -130,10 +130,8 @@ def _format_new_messages(messages):
 def review(change, gerrit_change):
     if config['AUTH'] is None:
         return
-    # TODO: db.get_latest_build
-    try:
-        build = change['build'][-1]
-    except IndexError:
+    build = change.latest_build()
+    if build is None:
         return
     if not build['rebased']['*']:
         # TODO: maybe it is reviewed and now there are conflicts
