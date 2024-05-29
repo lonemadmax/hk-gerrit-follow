@@ -1,8 +1,10 @@
 import json
 import os
 from os.path import exists, join
+import re
 import time
 
+import gerrit
 import paths
 
 
@@ -11,6 +13,10 @@ __all__ = ('data', 'load', 'save', 'set_change_done',
 
 _DATAFILE = join(paths.www_root(), 'builds.json')
 _BACKUP = _DATAFILE + '.bck'
+
+RE_WIP = re.compile(r'\bWIP\b', flags=re.IGNORECASE)
+TAG_WIP = 'WIP'
+TAG_UNRESOLVED = 'Unresolved comments'
 
 
 class Change(dict):
@@ -22,8 +28,66 @@ class Change(dict):
             self['sent_review'] = {'version': -1}
         self.cid = cid
 
-    def update_gerrit_data(self, data):
-        self.update(data)
+    def update_gerrit_data(self, info):
+        # We only get open changes, no need to check status
+        rev_info = info['revisions'][info['current_revision']]
+        self['id'] = info['_number']
+        self['title'] = info['subject']
+        self['version'] = rev_info['_number']
+        self['ref'] = rev_info['ref']
+        self['time'] = {
+            'create': gerrit.timestamp_to_time(info['created']),
+            'version': gerrit.timestamp_to_time(rev_info['created']),
+            'update': gerrit.timestamp_to_time(info['updated'])
+        }
+
+        tags = set()
+        try:
+            tags.update(info['hashtags'])
+        except KeyError:
+            pass
+        try:
+            tags.add(info['topic'])
+        except KeyError:
+            pass
+        for tag in list(tags):
+            if tag.lower() == 'wip':
+                tags.remove(tag)
+                tags.add(TAG_WIP)
+        try:
+            if info['work_in_progress']:
+                tags.add(TAG_WIP)
+        except KeyError:
+            pass
+        if (RE_WIP.search(self['title'])
+                or 'needs work' in self['title'].lower()
+                or 'work in progress' in self['title'].lower()):
+            tags.add(TAG_WIP)
+        try:
+            self.unresolved_comment_count = info['unresolved_comment_count']
+            if self.unresolved_comment_count > 0:
+                tags.add(TAG_UNRESOLVED)
+        except KeyError:
+            self.unresolved_comment_count = 0
+        self['tags'] = list(tags)
+
+        cr = 0
+        try:
+            cr_info = info['labels']['Code-Review']
+            for name, value in (('rejected', -2), ('approved', 2), ('disliked', -1),
+                    ('recommended', 1)):
+                if name in cr_info:
+                    cr = value
+                    break
+        except KeyError:
+            pass
+        self['review'] = cr
+
+    def is_wip(self):
+        return TAG_WIP in self['tags']
+
+    def unresolved_comments(self):
+        return self.unresolved_comment_count
 
     def latest_build(self):
         try:

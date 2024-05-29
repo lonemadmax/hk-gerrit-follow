@@ -9,7 +9,6 @@
 
 import os
 from os.path import exists, join
-import re
 from shutil import disk_usage, rmtree
 import time
 
@@ -20,10 +19,6 @@ import gerrit
 import paths
 from review import review
 
-
-RE_WIP = re.compile(r'\bWIP\b', flags=re.IGNORECASE)
-TAG_WIP = 'WIP'
-TAG_UNRESOLVED = 'Unresolved comments'
 
 SECONDS_PER_DAY = 24 * 60 * 60
 
@@ -40,71 +35,10 @@ GERRIT_BRANCH = gerrit.Repo(config['gerrit_url']).projects[config['project']].br
 # labels? https://review.haiku-os.org/Documentation/rest-api-changes.html#labels
 
 
-def update_change(info):
-    # We only get open changes, no need to check status
-    rev_info = info['revisions'][info['current_revision']]
-    change_info = {
-        'id': info['_number'],
-        'title': info['subject'],
-        'version': rev_info['_number'],
-        'ref': rev_info['ref'],
-        'time': {
-            'create': gerrit.timestamp_to_time(info['created']),
-            'version': gerrit.timestamp_to_time(rev_info['created']),
-            'update': gerrit.timestamp_to_time(info['updated'])
-        }
-    }
-
-    tags = set()
-    try:
-        tags.update(info['hashtags'])
-    except KeyError:
-        pass
-    try:
-        tags.add(info['topic'])
-    except KeyError:
-        pass
-    try:
-        if info['work_in_progress']:
-            tags.add(TAG_WIP)
-    except KeyError:
-        pass
-    for t in ('wip', 'Wip'):
-        try:
-            tags.remove(t)
-            tags.add(TAG_WIP)
-        except KeyError:
-            pass
-    if (RE_WIP.search(change_info['title'])
-            or 'needs work' in change_info['title'].lower()
-            or 'work in progress' in change_info['title'].lower()):
-        tags.add(TAG_WIP)
-    try:
-        if info['unresolved_comment_count'] > 0:
-            tags.add(TAG_UNRESOLVED)
-    except KeyError:
-        pass
-    change_info['tags'] = list(tags)
-
-    cr = 0
-    try:
-        cr_info = info['labels']['Code-Review']
-        for name, value in (('rejected', -2), ('approved', 2), ('disliked', -1),
-                ('recommended', 1)):
-            if name in cr_info:
-                cr = value
-                break
-    except KeyError:
-        pass
-    change_info['review'] = cr
-
-    db.change(info['change_id']).update_gerrit_data(change_info)
-
-
 def update_changes():
     changes = GERRIT_BRANCH.get_changes()
     for change_info in changes.values():
-        update_change(change_info)
+        db.change(change_info['change_id']).update_gerrit_data(change_info)
     for change in db.active_changes():
         if change.cid not in changes:
             db.set_change_done(change)
@@ -139,23 +73,24 @@ def sorted_changes():
 
     now = time.time()
     priority = [{} for i in range(10)]
-    for cid, change in db.data['change'].items():
+    for change in db.active_changes():
+        cid = change.cid
         latest = change.latest_build()
 
         if latest is None:
             # New changeset: 0, 1, 3, 6, 8
 
-            if TAG_WIP in change['tags']:
-                if TAG_UNRESOLVED in change['tags']:
+            if change.is_wip():
+                if change.unresolved_comments():
                     prio = 8
                 else:
                     prio = 6
             elif db.is_broken(db.data['release'][db.data['current']]['result']):
-                if TAG_UNRESOLVED in change['tags']:
+                if change.unresolved_comments():
                     prio = 1
                 else:
                     prio = 0
-            elif TAG_UNRESOLVED in change['tags']:
+            elif change.unresolved_comments():
                 prio = 8
             else:
                 prio = 3
@@ -168,15 +103,15 @@ def sorted_changes():
                     and ((not latest['picked'])
                         or db.is_broken(latest['picked']))):
                 # Both builds are broken
-                if TAG_UNRESOLVED in change['tags']:
+                if change.unresolved_comments():
                     prio = 7
-                elif TAG_WIP in change['tags']:
+                elif change.is_wip():
                     prio = 5
                 else:
                     prio = 2
-            elif TAG_UNRESOLVED in change['tags']:
+            elif change.unresolved_comments():
                 prio = 8
-            elif TAG_WIP in change['tags']:
+            elif change.is_wip():
                 prio = 6
             else:
                 prio = 4
@@ -198,10 +133,10 @@ def sorted_changes():
                 if now - change['time']['version'] > 3 * KNOB_OLD_VERSION:
                     weight /= 2
             # wait more if WIP
-            if TAG_WIP in change['tags']:
+            if change.is_wip():
                 weight -= 2 * SECONDS_PER_DAY
             # wait more if unresolved comments
-            if TAG_UNRESOLVED in change['tags']:
+            if change.unresolved_comments():
                 weight -= SECONDS_PER_DAY
                 min_delay *= 2
             # try again sooner for broken builds
@@ -332,7 +267,7 @@ while True:
         builder.build_change(cid)
         db.data['queued'] = to_build[1:]
         try:
-            review(db.data['change'][cid], GERRIT_BRANCH.get_change(cid))
+            review(db.change(cid), GERRIT_BRANCH.get_change(cid))
         except KeyError:
             pass
     else:
