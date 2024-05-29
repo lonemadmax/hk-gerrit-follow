@@ -48,12 +48,12 @@ def set_change_info(cid, info):
 
 def set_change_done(cid):
     try:
-        data['done'][cid] = data['change'][cid]
+        change = data['done'][cid] = data['change'][cid]
         try:
-            time = max(b['time'] for b in data['change'][cid]['build'])
+            time = max(b['time'] for b in change['build'])
         except ValueError:
             time = 0
-        data['done'][cid]['lastbuild'] = time
+        change['lastbuild'] = time
         del data['change'][cid]
     except KeyError:
         pass
