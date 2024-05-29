@@ -7,16 +7,29 @@ import paths
 
 
 __all__ = ('data', 'load', 'save', 'set_change_info', 'set_change_done',
-    'get_latest_build', 'is_broken', 'unused_releases')
+    'get_latest_build', 'is_broken', 'unused_releases', 'Change')
 
 _DATAFILE = join(paths.www_root(), 'builds.json')
 _BACKUP = _DATAFILE + '.bck'
+
+
+class Change(dict):
+    def __init__(self, data):
+        super().__init__(data)
+        if not 'build' in self:
+            self['build'] = []
+        if not 'sent_review' in self:
+            self['sent_review'] = {'version': -1}
 
 
 def load():
     global data
     with open(_DATAFILE, 'rt') as f:
         data = json.load(f)
+    for k in ('change', 'done'):
+        container = data[k]
+        for cid, change in container.items():
+            container[cid] = Change(change)
 
 
 def save():
@@ -30,16 +43,9 @@ def save():
 
 def set_change_info(cid, info):
     try:
-        builds = data['change'][cid]['build']
+        data['change'][cid].update(info)
     except KeyError:
-        builds = []
-    try:
-        review = data['change'][cid]['sent_review']
-    except KeyError:
-        review = {'version': -1}
-    data['change'][cid] = info
-    data['change'][cid]['build'] = builds
-    data['change'][cid]['sent_review'] = review
+        data['change'][cid] = Change(info)
     try:
         del data['done'][cid]
     except KeyError:
