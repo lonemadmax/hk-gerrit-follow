@@ -98,15 +98,16 @@ def update_change(info):
         pass
     change_info['review'] = cr
 
-    db.set_change_info(info['change_id'], change_info)
+    db.change(info['change_id']).update_gerrit_data(change_info)
 
 
 def update_changes():
     changes = GERRIT_BRANCH.get_changes()
     for change_info in changes.values():
         update_change(change_info)
-    for cid in [cid for cid in db.data['change'] if cid not in changes]:
-        db.set_change_done(cid)
+    for change in db.active_changes():
+        if change.cid not in changes:
+            db.set_change_done(change)
 
 
 def sorted_changes():

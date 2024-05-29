@@ -6,20 +6,24 @@ import time
 import paths
 
 
-__all__ = ('data', 'load', 'save', 'set_change_info', 'set_change_done',
-    'is_broken', 'unused_releases', 'Change')
+__all__ = ('data', 'load', 'save', 'set_change_done',
+    'is_broken', 'unused_releases', 'Change', 'change', 'active_changes')
 
 _DATAFILE = join(paths.www_root(), 'builds.json')
 _BACKUP = _DATAFILE + '.bck'
 
 
 class Change(dict):
-    def __init__(self, data):
+    def __init__(self, cid, data=()):
         super().__init__(data)
         if not 'build' in self:
             self['build'] = []
         if not 'sent_review' in self:
             self['sent_review'] = {'version': -1}
+        self.cid = cid
+
+    def update_gerrit_data(self, data):
+        self.update(data)
 
     def latest_build(self):
         try:
@@ -35,7 +39,7 @@ def load():
     for k in ('change', 'done'):
         container = data[k]
         for cid, change in container.items():
-            container[cid] = Change(change)
+            container[cid] = Change(cid, change)
 
 
 def save():
@@ -47,25 +51,23 @@ def save():
     os.replace(_BACKUP, _DATAFILE)
 
 
-def set_change_info(cid, info):
+def change(cid):
     try:
-        data['change'][cid].update(info)
+        return data['change'][cid]
     except KeyError:
-        data['change'][cid] = Change(info)
-    try:
-        del data['done'][cid]
-    except KeyError:
-        pass
+        change = Change(cid)
+        data['change'][cid] = change
+        return change
 
 
-def set_change_done(cid):
+def active_changes():
+    return list(data['change'].values())
+
+
+def set_change_done(change):
+    cid = change.cid
+    data['done'][cid] = change
     try:
-        change = data['done'][cid] = data['change'][cid]
-        try:
-            time = max(b['time'] for b in change['build'])
-        except ValueError:
-            time = 0
-        change['lastbuild'] = time
         del data['change'][cid]
     except KeyError:
         pass
@@ -73,6 +75,11 @@ def set_change_done(cid):
         data['queued'].remove(cid)
     except ValueError:
         pass
+    try:
+        time = max(b['time'] for b in change['build'])
+    except ValueError:
+        time = 0
+    change['lastbuild'] = time
 
 
 def is_broken(arch):
