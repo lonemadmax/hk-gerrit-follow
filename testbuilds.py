@@ -233,10 +233,10 @@ def remove_old_starved():
     if disk_usage(paths.www_root()).free > config['low_disk']:
         return True
     else:
-        for cid in sorted((k for k, v in db.data['change'].items()
-                    if v['build']),
-                key=lambda cid: db.data['change'][cid]['build'][-1]['time']):
-            clean_up_build(cid, db.data['change'][cid]['build'][-1])
+        for change in sorted((change for change in db.active_changes()
+                    if change.latest_build()),
+                key=lambda change: change.latest_build()['time']):
+            clean_up_build(change.cid, change.latest_build())
             if disk_usage(paths.www_root()).free > config['low_disk']:
                 return True
     return False
@@ -264,10 +264,11 @@ while True:
     db.data['queued'] = to_build
     if to_build:
         cid = to_build[0]
-        builder.build_change(cid)
+        change = db.change(cid)
+        builder.build_change(change)
         db.data['queued'] = to_build[1:]
         try:
-            review(db.change(cid), GERRIT_BRANCH.get_change(cid))
+            review(change, GERRIT_BRANCH.get_change(cid))
         except KeyError:
             pass
     else:

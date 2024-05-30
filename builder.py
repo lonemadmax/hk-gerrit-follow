@@ -332,8 +332,9 @@ def update_release():
     return False
 
 
-def _build_change(cid, build_data, rebased):
-    legacy_id = str(db.data['change'][cid]['id'])
+def _build_change(change, build_data, rebased):
+    cid = change.cid
+    legacy_id = str(change['id'])
     version = str(build_data['version'])
     parent = build_data['parent']
     tag = parent + '_' + legacy_id + '_' + version
@@ -425,8 +426,8 @@ def changeset_branch_name(cid, version):
     return 'changeset-' + cid + '-' + str(version)
 
 
-def build_change(cid):
-    change = db.data['change'][cid]
+def build_change(change):
+    cid = change.cid
     base = REPO.heads[BRANCH_BASE]
     change_branch = changeset_branch_name(cid, change['version'])
     if change_branch not in REPO.branches:
@@ -489,7 +490,7 @@ def build_change(cid):
                 }
             db.save()
             if result['*']['ok']:
-                _build_change(cid, build_data, not cherry)
+                _build_change(change, build_data, not cherry)
         except git.exc.GitCommandError:
             message = []
             commit = REPO.currently_replaying()
