@@ -176,8 +176,8 @@ def sorted_changes():
 
 
 def remove_done_before(t):
-    builder.remove_done_changes(list(cid for cid, cdata
-        in db.data['done'].items() if cdata['lastbuild'] < t))
+    builder.remove_done_changes(list(c.cid for c in db.data['done'].values()
+        if c.latest_build() is None or c.latest_build()['time'] < t))
 
 
 def remove_unused_releases():

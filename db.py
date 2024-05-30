@@ -155,11 +155,6 @@ def set_change_done(change):
         data['queued'].remove(cid)
     except ValueError:
         pass
-    try:
-        time = max(b['time'] for b in change['build'])
-    except ValueError:
-        time = 0
-    change['lastbuild'] = time
 
 
 def is_broken(arch):
@@ -233,7 +228,6 @@ except FileNotFoundError:
 #
 #done{cid}
 #    ...change{cid}
-#    lastbuild (last build time or 0)
 #
 #time (last file update)
 #current (last hrev)

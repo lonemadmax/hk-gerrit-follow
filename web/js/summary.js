@@ -527,7 +527,6 @@ change{cid}:
 
 done{cid}
     ...change{cid}
-    lastbuild (last build time or 0)
 
 time (last file update)
 current (last hrev)
