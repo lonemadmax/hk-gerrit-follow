@@ -61,7 +61,8 @@ class Branch:
             if before:
                 q = q + ' before:"' + before + '"'
             r = self.repo.session.get(url, params={'q': q, 'pp': 0, 'o': [
-                'CURRENT_REVISION', 'SKIP_MERGEABLE', 'LABELS']})
+                'CURRENT_REVISION', 'SKIP_MERGEABLE', 'SKIP_DIFFSTAT',
+                'LABELS']})
             changes = extract_json(r)
 
             if not changes:
