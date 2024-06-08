@@ -13,6 +13,7 @@ from shutil import disk_usage, rmtree
 import time
 
 import builder
+import chain
 from config import config
 import db
 import gerrit
@@ -42,6 +43,7 @@ def update_changes():
     for change in db.active_changes():
         if change.cid not in changes:
             db.set_change_done(change)
+    chain.update_changes()
 
 
 def sorted_changes():

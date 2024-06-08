@@ -98,6 +98,22 @@ class Branch:
         self._update_changes()
         return self._changes[cid]
 
+    def change_for_commit_sha(self, sha):
+        url = self.repo.baseURL + 'changes/'
+        query = ('project:"' + self.project.name + '" branch:"' + self.ref
+            + '" commit:' + sha)
+        r = self.repo.session.get(url, params={'q': query, 'pp': 0, 'o': [
+            'SKIP_MERGEABLE', 'SKIP_DIFFSTAT']})
+        changes = extract_json(r)
+
+        if not changes:
+            return None
+        if len(changes) > 1:
+            print(changes)
+            raise Exception("Too many changes for commit " + sha)
+
+        return changes[0]['change_id']
+
 
 class Project:
     def __init__(self, repo, baseURL, name, pid):

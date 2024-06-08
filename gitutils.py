@@ -6,7 +6,8 @@ import paths
 
 
 __all__ = ('get_repo', 'get_worktrees', 'update', 'history', 'track',
-    'decorate_with_tags', 'decorate', 'format_patch', 'commit_from_git_file')
+    'decorate_with_tags', 'decorate', 'format_patch', 'commit_from_git_file',
+    'get_remote', 'trailers_list', 'checkout_detached_head')
 
 
 def _clone(url, path):
@@ -36,6 +37,17 @@ def get_worktrees(repo):
             wt.append(cur)
             cur = {'flags': set()}
     return wt
+
+
+def get_remote(repo, url, name=None):
+    for remote in repo.remotes:
+        if url in remote.urls:
+            return remote
+    if name:
+        remote = git.Remote.create(repo, name)
+        remote.add_url(url)
+        return remote
+    return None
 
 
 def update(repo, fetch_only=False):
@@ -177,6 +189,87 @@ def commit_from_git_file(repo, *file):
             return repo.commit(f.readline().strip())
     except FileNotFoundError:
         return None
+
+
+def trailers_list(text):
+    # Old versions of GitPython don't have Commit.trailers_list. Old versions
+    # of git interpret-trailers don't have --parse, which is what trailers_list
+    # would use. One the other hand, gerrit's commit-msg hook also uses it, so
+    # maybe we should not support those old versions.
+    whitespace = ' \f\n\r\t\v'  # Not the same as str.isspace()
+    trailers = []
+
+    lines = []
+    # This should probably be split('\n') instead
+    for line in text.splitlines():
+        if line.startswith('#'):
+            continue
+        if line.startswith('---'):
+            if len(line) == 3:
+                break
+            if line[3] in whitespace:
+                # not exactly line[3].isspace()
+                break
+        if line.strip(whitespace):
+            if (line[0] in whitespace and lines and lines[-1]
+                    and ':' in lines[-1]):
+                # Unfold, but we may make some stuff (like Conflicts trailer)
+                # useless
+                lines[-1] = (lines[-1].strip(whitespace)
+                    + ' ' + line.strip(whitespace))
+            else:
+                lines.append(line)
+        else:
+            lines.append('')
+
+    paragraphs = []
+    current = []
+    for line in lines:
+        if line:
+            current.append(line)
+        elif current:
+            paragraphs.append(current)
+            current = []
+    if current:
+        paragraphs.append(current)
+
+    if len(paragraphs) > 1:
+        special = False
+
+        def has_whitespace(s):
+            for c in whitespace:
+                if c in s:
+                    return True
+            return False
+
+        for line in paragraphs[-1]:
+            try:
+                # TODO: a different separator might be configured
+                key, value = line.split(':', maxsplit=1)
+            except ValueError:
+                continue
+            if not key:
+                continue
+            if key[0] in whitespace:
+                continue
+            key = key.strip(whitespace)
+            if has_whitespace(key):
+                continue
+            if key in ('Signed-off-by', '(cherry picked from commit'):
+                special = True
+            trailers.append((key, value.strip(whitespace)))
+        n_trailers = len(trailers)
+        n_lines = len(paragraphs[-1])
+        if not (n_trailers == n_lines
+                or (special and n_trailers * 3 > n_lines)):
+            trailers.clear()
+
+    return trailers
+
+
+def checkout_detached_head(repo, commit):
+    repo.head.ref = commit
+    repo.head.reset(index=True, working_tree=True)
 
 
 def currently_replaying(self):

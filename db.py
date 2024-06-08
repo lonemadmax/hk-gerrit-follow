@@ -40,6 +40,8 @@ class Change(dict):
             'version': gerrit.timestamp_to_time(rev_info['created']),
             'update': gerrit.timestamp_to_time(info['updated'])
         }
+        self.branch = info['Branch']
+        self.remote = rev_info['fetch']['anonymous http']['url']
 
         tags = set()
         try:
