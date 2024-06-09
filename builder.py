@@ -273,7 +273,13 @@ def build_release():
     tag = gitutils.decorate(commit)
     if tag is None:
         # Shouldn't happen?
-        tag = commit.hexsha
+        tag = gitutils.decorate(commit, False).replace('-', '+')
+        # TODO: it is used as commitish here and there. Instead of hunting
+        # down all those places to use the commit (it should be in
+        # db.data['release'][tag]['commit']), just make a branch off of it.
+        # We don't want a tag so that other tagless commits are not based
+        # on it when we try to decorate them.
+        REPO.create_head(tag, commmit)
 
     dst = paths.www('release', config['branch'], tag, None)
     os.makedirs(dst, exist_ok=True)
