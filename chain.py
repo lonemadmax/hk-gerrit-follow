@@ -52,21 +52,22 @@ class Change:
             self.picked = None
             return
 
-        branch_name = self.branch_name()
         try:
-            self.picked = REPO.heads[branch_name+'-pick'].commit
+            branch_name = self.picked_branch_name()
+            self.picked = REPO.heads[branch_name].commit
             if REPO.merge_base(self.picked, base) != base:
                 self.picked = None
-                REPO.delete_head(branch_name+'-pick', branch_name+'-rebase',
+                REPO.delete_head(branch_name, self.rebased_branch_name(),
                                 force=True)
         except IndexError:
             self.picked = None
         try:
-            self.rebased = REPO.heads[branch_name+'-rebase'].commit
+            branch_name = self.rebased_branch_name()
+            self.rebased = REPO.heads[branch_name].commit
             if (self.picked is None
                     and REPO.merge_base(self.rebased, base) != base):
                 self.rebased = None
-                REPO.delete_head(branch_name+'-rebase', force=True)
+                REPO.delete_head(branch_name, force=True)
         except IndexError:
             self.rebased = None
         if self.rebased is not None:
@@ -128,12 +129,12 @@ class Change:
             self.rebased_conflicting = None
             self.rebased_conflicts.clear()
             if self.rebased is not None:
-                REPO.delete_head(self.branch_name()+'-rebase', force=True)
+                REPO.delete_head(self.rebased_branch_name(), force=True)
                 self.rebased = None
         if self._state > Change._FETCHED >= state:
             self.pick_conflicts.clear()
             if self.picked is not None:
-                REPO.delete_head(self.branch_name()+'-pick', force=True)
+                REPO.delete_head(self.picked_branch_name(), force=True)
                 self.picked = None
         if self._state > Change._NEW >= state:
             self.fetched = None
@@ -141,8 +142,14 @@ class Change:
         self._state = state
         self._downgrade_children()
 
-    def branch_name(self):
+    def fetched_branch_name(self):
         return builder.changeset_branch_name(self.cid, self.version)
+
+    def picked_branch_name(self):
+        return self.fetched_branch_name() + '-pick'
+
+    def rebased_branch_name(self):
+        return self.fetched_branch_name() + '-rebase'
 
     def delete(self):
         if self._state <= Change._DELETED:
@@ -150,12 +157,12 @@ class Change:
         self._downgrade(Change._DELETED)
 
     def _forced_fetch_refspec(self):
-        return '+' + self.ref + ':' + self.branch_name()
+        return '+' + self.ref + ':' + self.fetched_branch_name()
 
     def _check_fetched(self):
         if self._state >= Change._FETCHED:
             return
-        branch_name = self.branch_name()
+        branch_name = self.fetched_branch_name()
         try:
             self.fetched = REPO.heads[branch_name].commit
             _hexsha_to_cid[self.fetched.hexsha] = self.cid
@@ -194,7 +201,7 @@ class Change:
             tip_commit = self.fetch()
             if tip_commit:
                 self._state = Change._PICKED
-                branch_name = self.branch_name() + '-pick'
+                branch_name = self.picked_branch_name()
                 if tip_commit.parents[0] == self.base:
                     branch = REPO.create_head(branch_name, tip_commit)
                     self.picked = tip_commit
@@ -210,7 +217,7 @@ class Change:
             self.rebased_conflicting = None
             self.rebased_conflicts.clear()
             if self.fetched:
-                branch_name = self.branch_name() + '-rebase'
+                branch_name = self.rebased_branch_name()
                 base = self.active_parent()
                 if base:
                     tip_commit, _, conflicting = changes[base].rebase()
