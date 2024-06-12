@@ -1,5 +1,5 @@
 __all__ = ('changes', 'changeid', 'set_base_commit', 'update_changes',
-    'fetch_changes')
+    'fetch_changes', 'delete_obsolete_branches')
 
 from collections import defaultdict
 
@@ -33,6 +33,7 @@ class Change:
 
     def __init__(self, change, base=_base_commit):
         self.cid = change.cid
+        self.number = change['id']
         self.version = change['version']
         self.branch = change.branch
         self.ref = change['ref']
@@ -40,6 +41,8 @@ class Change:
         self.base = base
         self.rebased_conflicting = None
         self.rebased_conflicts = []
+        self.rebased = None
+        self.picked = None
         self.pick_conflicts = []
         self.uploaded_chain = []
         self._state = Change._NEW
@@ -47,33 +50,9 @@ class Change:
         changes[self.cid] = self
 
         self._check_fetched()
-        if self._state < Change._FETCHED:
-            self.rebased = None
-            self.picked = None
-            return
-
-        try:
-            branch_name = self.picked_branch_name()
-            self.picked = REPO.heads[branch_name].commit
-            if REPO.merge_base(self.picked, base) != base:
-                self.picked = None
-                REPO.delete_head(branch_name, self.rebased_branch_name(),
-                                force=True)
-        except IndexError:
-            self.picked = None
-        try:
-            branch_name = self.rebased_branch_name()
-            self.rebased = REPO.heads[branch_name].commit
-            if (self.picked is None
-                    and REPO.merge_base(self.rebased, base) != base):
-                self.rebased = None
-                REPO.delete_head(branch_name, force=True)
-        except IndexError:
-            self.rebased = None
-        if self.rebased is not None:
-            self._state = Change._REBASED
-        elif self.picked is not None:
-            self._state = Change._PICKED
+        # We may not have info about parents yet, so leave the rebase branch
+        # for later, when we need it. We may look for the picked one, or just
+        # pick(), but we don't really need to now.
 
     def _rebuild_uploaded_chain(self):
         for cid in self.uploaded_chain:
@@ -103,6 +82,9 @@ class Change:
             if self.cid != change.cid:
                 raise Exception("updated with different cid: "
                     + self.cid + " -> " + change.cid)
+            if self.number != change['id']:
+                raise Exception("updated with different id: "
+                    + str(self.number) + " -> " + str(change['id']))
             if self.branch != change.branch:
                 raise Exception("updated with different branch: "
                     + self.branch.ref + " -> " + change.branch.ref)
@@ -128,14 +110,10 @@ class Change:
         if self._state > Change._PICKED >= state:
             self.rebased_conflicting = None
             self.rebased_conflicts.clear()
-            if self.rebased is not None:
-                REPO.delete_head(self.rebased_branch_name(), force=True)
-                self.rebased = None
+            self.rebased = None
         if self._state > Change._FETCHED >= state:
             self.pick_conflicts.clear()
-            if self.picked is not None:
-                REPO.delete_head(self.picked_branch_name(), force=True)
-                self.picked = None
+            self.picked = None
         if self._state > Change._NEW >= state:
             self.fetched = None
             self._rebuild_uploaded_chain()
@@ -146,10 +124,24 @@ class Change:
         return builder.changeset_branch_name(self.cid, self.version)
 
     def picked_branch_name(self):
-        return self.fetched_branch_name() + '-pick'
+        return (builder.changeset_branch_name(self.cid, 'd/')
+            + self.base + ',' + self.version_signature())
 
     def rebased_branch_name(self):
-        return self.fetched_branch_name() + '-rebase'
+        return (builder.changeset_branch_name(self.cid, 'd/')
+            + self.base + ',' + self.chain_signature())
+
+    def version_signature(self):
+        return '{:03x}'.format(self.version)
+
+    def chain_signature(self):
+        signature = [self.version_signature()]
+        if self.fetch():
+            for cid in self.active_chain()[:-1]:
+                change = changes[cid]
+                signature.append('{0:x}{1:03x}'.format(
+                    change.number, change.version))
+        return ','.join(signature)
 
     def delete(self):
         if self._state <= Change._DELETED:
@@ -183,7 +175,10 @@ class Change:
     def _pick_on_top(self, base, branch_name):
         if self.fetch() is None:
             return (None, None)
-        head = REPO.head.ref
+        try:
+            return (REPO.heads[branch_name].commit, None)
+        except IndexError:
+            pass
         branch = REPO.create_head(branch_name, base)
         branch.checkout(force=True)
         try:
@@ -218,29 +213,34 @@ class Change:
             self.rebased_conflicts.clear()
             if self.fetched:
                 branch_name = self.rebased_branch_name()
-                base = self.active_parent()
-                if base:
-                    tip_commit, _, conflicting = changes[base].rebase()
-                    if conflicting:
-                        self._state = Change._CONFLICT_PARENT
-                        self.rebased_conflicting = conflicting
+                try:
+                    self.rebased = REPO.heads[branch_name].commit
+                    self._state = Change._REBASED
+                except IndexError:
+                    base = self.active_parent()
+                    if base:
+                        tip_commit, _, conflicting = changes[base].rebase()
+                        if conflicting:
+                            self._state = Change._CONFLICT_PARENT
+                            self.rebased_conflicting = conflicting
+                        else:
+                            self.rebased, self.rebased_conflicts = \
+                                self._pick_on_top(tip_commit, branch_name)
+                            if self.rebased:
+                                self._state = Change._REBASED
+                            else:
+                                self._state = Change._CONFLICT
+                                self.rebased_conflicting = self.cid
                     else:
-                        self.rebased, self.rebased_conflicts = \
-                            self._pick_on_top(tip_commit, branch_name)
+                        self.rebased = self.picked
+                        self.rebased_conflicts.extend(self.pick_conflicts)
                         if self.rebased:
                             self._state = Change._REBASED
+                            # pick and rebase branches have the same name
+                            #REPO.create_head(branch_name, self.rebased)
                         else:
                             self._state = Change._CONFLICT
                             self.rebased_conflicting = self.cid
-                else:
-                    self.rebased = self.picked
-                    self.rebased_conflicts.extend(self.pick_conflicts)
-                    if self.rebased:
-                        self._state = Change._REBASED
-                        REPO.create_head(branch_name, self.rebased)
-                    else:
-                        self._state = Change._CONFLICT
-                        self.rebased_conflicting = self.cid
 
         return (self.rebased, self.rebased_conflicts, self.rebased_conflicting)
 
@@ -359,7 +359,6 @@ def update_changes():
     _base_commit = db.data['current']
 
     active = set()
-    new = []
 
     for change in db.active_changes():
         cid = change.cid
@@ -368,23 +367,19 @@ def update_changes():
             changes[cid].update(change)
         except KeyError:
             changes[cid] = Change(change)
-            new.append(changes[cid])
+            # In case an abandoned change is resurrected
+            changes[cid]._downgrade_children()
 
     for cid in list(changes.keys()):
         if cid not in active:
             changes[cid].delete()
+            # TODO: do we really want to get rid of this?
             del changes[cid]
 
     fetch_changes([change for change in changes.values()
         if change._state < Change._FETCHED])
 
-    # Say we had A>B from a previous run, both rebased, and B is updated (or
-    # merged, or abandoned) while we are not running. When we run again we'll
-    # see the rebase branch for A and mark it as REBASED, but it will be on
-    # top of an old B.
-    for change in new:
-        if change._state > Change._PICKED:
-            change.check_rebased_branch()
+    delete_obsolete_branches()
 
 
 def fetch_changes(changes):
@@ -400,4 +395,41 @@ def fetch_changes(changes):
         # TODO: check flags in the FetchInfo items returned by fetch()?
         for change in changes:
             change._check_fetched()
+
+
+def delete_obsolete_branches(keep=10):
+    index = {}
+    for change in changes.values():
+        current_prefix = change.picked_branch_name()
+        prefix = current_prefix.split('/')[0]
+        used = []
+        used.append(current_prefix)
+        for group in ('change', 'done'):
+            for db_change in db.data[group].values():
+                for build in db_change['build']:
+                    used.append(build['parent'] + ','
+                        + '{:03x}'.format(build['version']))
+        index[prefix] = (used, [])
+    for branch in REPO.heads:
+        name = branch.name.split('/')
+        if len(name) == 2:
+            try:
+                used, obsolete = index[name[0]]
+                for prefix in used:
+                    if name[1].startswith(prefix):
+                        break
+                else:
+                    obsolete.append(branch)
+            except IndexError:
+                pass
+    delete = []
+    if keep:
+        for _, obsolete in index.values():
+            if len(obsolete) > keep:
+                delete.extend(sorted(obsolete, key=lambda b: b.name)[:-keep])
+    else:
+        for _, obsolete in index.values():
+            delete.extend(obsolete)
+    if obsolete:
+        REPO.delete_head(*obsolete, force=True)
 
