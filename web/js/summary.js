@@ -282,16 +282,15 @@
             return fragment;
         }
         // TODO: might also be an already merged patch in a different form
-        const conflictLink = textLink(buildBasePath(data, rebased)
-            + '/conflicts.html', 'Conflict');
+        const conflict = text('Conflict');
         if (buildData['*'].message) {
             const details = document.createElement('details');
-            details.appendChild(compose('summary', conflictLink));
+            details.appendChild(compose('summary', conflict));
             details.appendChild(compose('aside', text('pre',
                 buildData['*'].message)));
             return details;
         }
-        return conflictLink;
+        return conflict;
     }
 
     function changesetStateFragment(cid, data) {

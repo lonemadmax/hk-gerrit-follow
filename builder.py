@@ -2,7 +2,7 @@ import git
 import html
 import json
 import os
-from os.path import basename, exists, join, relpath, split
+from os.path import exists, join, relpath, split
 from shutil import copy, move, rmtree
 import stat
 import subprocess
@@ -11,6 +11,7 @@ import time
 
 from archive import archive
 import buildtools
+import chain
 from config import config
 import db
 import gitutils
@@ -340,7 +341,7 @@ def update_release():
 
 def _build_change(change, build_data, rebased):
     cid = change.cid
-    legacy_id = str(change['id'])
+    legacy_id = str(change.number)
     version = str(build_data['version'])
     parent = build_data['parent']
     tag = parent + '_' + legacy_id + '_' + version
@@ -363,71 +364,6 @@ def _build_change(change, build_data, rebased):
             db.save()
 
 
-def _process_conflicts(dst):
-    src = paths.worktree()
-    file_list = []
-    for f in REPO.index.unmerged_blobs():
-        file_list.append(f)
-        d, n = split(f)
-        d = join(dst, d)
-        os.makedirs(d, exist_ok=True)
-        try:
-            copy(join(src, f), d)
-        except FileNotFoundError:
-            # Renames, may have "both deleted" and the file doesn't exist now
-            print('DDD FileNotFoundError', f)
-            pass
-    return file_list
-
-
-def _conflict_page(dst, patches, applied, conflicts):
-    # TODO: by default filename length is limited to 64 in format-patch,
-    # and there's also no guarantee that subject lines are unique, so we may
-    # have duplicate keys
-    _applied = {}
-    for patch in applied:
-        patch = relpath(patch, start=dst)
-        name = basename(patch)
-        _applied[name[name.find('-'):]] = patch
-
-    with open(join(dst, 'conflicts.html'), 'wt') as f:
-        f.write('<!DOCTYPE html>\n<html><head><meta charset="utf-8" />'
-            '\n<title>Conflicts applying patches</title>'
-            '\n<link rel="stylesheet" href="')
-        f.write(paths.link_root() + '/css/main.css')
-        f.write('" />\n</head><body>\nPatches<ol>')
-        for patch in patches:
-            item = ['\n<li><a href="']
-            patch = relpath(patch, start=dst)
-            name = basename(patch)
-            item.append(html.escape(patch, quote=True))
-            item.append('">')
-            item.append(html.escape(name, quote=True))
-            item.append('</a>')
-            try:
-                applied_patch = _applied.pop(name[name.find('-'):])
-                item.append(' <a href="')
-                item.append(html.escape(applied_patch, quote=True))
-                item.append('">[applied]</a>')
-            except KeyError:
-                pass
-            item.append('</li>')
-            f.write(''.join(item))
-        if _applied:
-            print('DDD applied inexistent patches?', dst, _applied, '|',
-                patches, '|', applied)
-        f.write('\n</ol>Conflicts<ul>')
-        for conflict in conflicts:
-            item = ['\n<li><a href="conflicts/']
-            escaped = html.escape(conflict, quote=True)
-            item.append(escaped)
-            item.append('">')
-            item.append(escaped)
-            item.append('</a></li>')
-            f.write(''.join(item))
-        f.write('\n</ul>\n</body></html>')
-
-
 def changeset_branch_name(cid, version):
     return 'changeset-' + cid + '-' + str(version)
 
@@ -435,10 +371,6 @@ def changeset_branch_name(cid, version):
 def build_change(change):
     cid = change.cid
     base = REPO.heads[BRANCH_BASE]
-    change_branch = changeset_branch_name(cid, change['version'])
-    if change_branch not in REPO.branches:
-        REPO.remotes[base.tracking_branch().remote_name].fetch(
-            change['ref']+':refs/heads/'+change_branch)
 
     parent = db.data['current']
     build_data = {
@@ -451,99 +383,65 @@ def build_change(change):
     }
     change['build'].append(build_data)
 
-    def _merge_and_build(cherry):
+    change = chain.changes[cid]
+    # except KeyError that should not happen
+
+    def _build(commit, cherry):
         dst = paths.www(cid, build_data['version'], parent, None, not cherry)
         patches_dir = join(dst, 'patches')
         os.makedirs(patches_dir, exist_ok=True)
         os.symlink(relpath(paths.www('release', config['branch'], parent, None),
             start=dst), join(dst, 'baseline'))
-        if cherry:
-            i = 1
-            patches = []
-            for c in cherry:
-                patches.extend(gitutils.format_patch(REPO, c.hexsha + '^!',
-                    patches_dir, start_number=i))
-                i += 1
-            result = build_data['picked']
-        else:
-            patches = gitutils.format_patch(REPO, parent + '..' + change_branch,
-                patches_dir)
-            result = build_data['rebased']
-        clean_rebase = len(patches) <= 1
+        patches = gitutils.format_patch(REPO, parent + '..' + commit.hexsha,
+            patches_dir)
 
         rolling_branch = REPO.branches[BRANCH_ROLLING]
         REPO.head.ref = rolling_branch
 
-        try:
-            if cherry:
-                rolling_branch.set_commit(base.commit)
-                rolling_branch.checkout(force=True)
-                REPO.git.cherry_pick(*cherry)
-            else:
-                rolling_branch.set_commit(change_branch)
-                rolling_branch.checkout(force=True)
-                REPO.git.rebase(BRANCH_BASE, rolling_branch)
-            real_patches = gitutils.format_patch(REPO, parent,
-                    join(dst, 'applied'))
-            if len(real_patches) <= 1:
-                clean_rebase = True
-            if real_patches and real_patches[0]:
-                result['*'] = {'ok': True}
-            else:
-                result['*'] = {
-                    'ok': False,
-                    'message': 'Already merged'
-                }
-            db.save()
-            if result['*']['ok']:
-                _build_change(change, build_data, not cherry)
-        except git.exc.GitCommandError:
-            message = []
-            commit = REPO.currently_replaying()
-            if commit is not None:
-                message.append('Conflict with ' + commit.hexsha + ' ['
-                        + commit.summary + ']:')
-            else:
-                message.append('Merge conflict:')
-            applied = gitutils.format_patch(REPO, parent, join(dst, 'applied'))
-            conflicts = _process_conflicts(join(dst, 'conflicts'))
-            message.extend(conflicts)
-            result['*'] = {
-                'ok': False,
-                'message': '\n'.join(message)
-            }
-            _conflict_page(dst, patches, applied, conflicts)
-            db.save()
-            if cherry:
-                REPO.git.cherry_pick(abort=True)
-            else:
-                REPO.git.rebase(abort=True)
+        #try:
+        rolling_branch.set_commit(commit)
+        rolling_branch.checkout(force=True)
+        _build_change(change, build_data, not cherry)
+        #except git.exc.GitCommandError:
 
         REPO.head.ref = rolling_branch
         rolling_branch.set_commit(base.commit)
         rolling_branch.checkout(force=True)
-        return clean_rebase
 
-    if not _merge_and_build(False):
-        # TODO: The change-id may or not be in the message, and I don't know
-        # if it's possible to have several commits with the same change-id.
-        # Let's just check if rebasing produced just one commit, else try
-        # cherrypicking the head one
-        _fill_empty_results(build_data['picked'])
-        _merge_and_build((REPO.commit(change_branch),))
-    #
-    #cid_history = []
-    #discarded_commits = False
-    #signature = 'change-id: ' + cid.lower()
-    #for commit in gitutils.history(base, change_branch, REPO):
-    #    if signature in commit.message.lower().split('\n'):
-    #        cid_history.append(commit)
-    #    else:
-    #        discarded_commits = True
-    #if discarded_commits and cid_history:
-    #    # I don't even know if this is possible in gerrit
-    #    # Let's cherry-pick just the commits for this changeset
-    #    _merge_and_build(cid_history)
+    def _do(commit, conflicts, conflict_origin, cherry):
+        if cherry:
+            result = build_data['picked']['*']
+        else:
+            result = build_data['rebased']['*']
+
+        msg = None
+        if commit:
+            if REPO.commit(parent).tree == commit.tree:
+                msg = 'Already merged'
+        elif conflicts:
+            msg = 'Conflicts in:\n' + '\n'.join(conflicts)
+        else:
+            # TODO: find it and add the conflicts, the subject
+            # the number/version?
+            msg = 'Conflicts in ancestor ' + conflict_origin
+
+        if msg:
+            result['ok'] = False
+            result['message'] = msg
+            db.save()
+        else:
+            result['ok'] = True
+            db.save()
+            _build(commit, cherry)
+
+    rebase, conflicts, conflicting_cid = change.rebase()
+    _do(rebase, conflicts, conflicting_cid, False)
+
+    pick, conflicts = change.pick()
+    if rebase and pick == rebase:
+        return
+    _fill_empty_results(build_data['picked'])
+    _do(pick, conflicts, None, True)
 
 
 def remove_done_changes(cids):
