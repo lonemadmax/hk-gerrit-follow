@@ -9,7 +9,13 @@ import tmpfs
 def www_root():
     return config['www_root']
 
-def www(changeset, version, master, arch, full=True):
+def www(change, build, job, full=True):
+    return _www(change.cid, build['version'], build['parent'], job, full)
+
+def www_release(branch, tag, job):
+    return _www('release', branch, tag, job)
+
+def _www(changeset, version, master, arch, full=True):
     version = str(version)
     if not full:
         version += '-sep'
@@ -42,7 +48,7 @@ def emulated_attributes():
     return join(tmpfs.preferred_root(), 'haiku_testbuilds')
 
 def delete_release(branch, tag):
-    rmtree(www('release', branch, tag, None), ignore_errors=True)
+    rmtree(www_release(branch, tag, None), ignore_errors=True)
 
 def delete_change(cid):
     rmtree(join(www_root(), cid), ignore_errors=True)

@@ -190,15 +190,14 @@ def remove_unused_releases():
     for tag in clean:
         for arch in db.data['release'][tag]['result']:
             if arch != '*':
-                paths.clean_up(paths.www('release', config['branch'], tag, arch))
+                paths.clean_up(paths.www_release(config['branch'], tag, arch))
 
 
-def clean_up_build(cid, build):
+def clean_up_build(change, build):
     for res, full in (('rebased', True), ('picked', False)):
         for arch in build[res]:
             if arch != '*' and build[res][arch]:
-                paths.clean_up(paths.www(cid, build['version'],
-                    build['parent'], arch, full=full))
+                paths.clean_up(paths.www(change, build, arch, full=full))
     build['logs_only'] = True
 
 
@@ -206,7 +205,7 @@ def remove_old_harder():
     remove_done_before(time.time()
         - config['keep_done_pressure'] * SECONDS_PER_DAY)
     for k, lim in (('done', 1), ('change', 3)):
-        for cid, change in db.data[k].items():
+        for change in db.data[k].values():
             try:
                 keep = change['sent_review']['parent']
             except KeyError:
@@ -217,28 +216,27 @@ def remove_old_harder():
                 if old['parent'] == keep:
                     change['build'].insert(0, old)
                 else:
-                    rmtree(paths.www(cid, old['version'], old['parent'], None),
-                        ignore_errors=True)
+                    rmtree(paths.www(change, old, None), ignore_errors=True)
                     if old['picked']:
-                        rmtree(paths.www(cid, old['version'], old['parent'],
-                            None, full=False), ignore_errors=True)
+                        rmtree(paths.www(change, old, None, full=False),
+                            ignore_errors=True)
             for old in change['build'][:-1]:
-                clean_up_build(cid, old)
+                clean_up_build(change, old)
     remove_unused_releases()
     db.save()
 
 
 def remove_old_starved():
-    for cid, change in db.data['done'].items():
+    for change in db.data['done'].values():
         if change['build']:
-            clean_up_build(cid, change['build'][-1])
+            clean_up_build(change, change['build'][-1])
     if disk_usage(paths.www_root()).free > config['low_disk']:
         return True
     else:
         for change in sorted((change for change in db.active_changes()
                     if change.latest_build()),
                 key=lambda change: change.latest_build()['time']):
-            clean_up_build(change.cid, change.latest_build())
+            clean_up_build(change, change.latest_build())
             if disk_usage(paths.www_root()).free > config['low_disk']:
                 return True
     return False

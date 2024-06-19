@@ -47,10 +47,9 @@ def _base_review(build_result):
     return review
 
 
-def _new_messages(cid, build, arch):
+def _new_messages(change, build, arch):
     messages = []
-    path = join(paths.www(cid, build['version'], build['parent'], arch),
-        'new-messages.json')
+    path = join(paths.www(change, build, arch), 'new-messages.json')
     try:
         with open(path, 'rt') as f:
             data = json.load(f)
@@ -207,7 +206,7 @@ def review(change, gerrit_change):
     if all_ok:
         score = '+1'
         if same_as_parent:
-            warnings = {arch: _new_messages(cid, build, arch)
+            warnings = {arch: _new_messages(change, build, arch)
                 for arch in current_review.keys()}
             n_warnings = max((len(m) for m in warnings.values()))
             if n_warnings:
@@ -238,7 +237,7 @@ def review(change, gerrit_change):
             dest = arch_msg[0]
             if result['ok']:
                 dest = arch_msg[1]
-                warnings = _new_messages(cid, build, arch)
+                warnings = _new_messages(change, build, arch)
                 if warnings:
                     includes_warnings = True
                     arch_message = ('OK, with ' + str(len(warnings))
@@ -276,7 +275,7 @@ def review(change, gerrit_change):
                 message += '\n\n' + ', '.join(sorted(arches)) + ': ' + msg
 
     message += ('\n\n' + config['site'] + paths.www_link(
-        paths.www(cid, build['version'], build['parent'], None)))
+        paths.www(change, build, None)))
     if includes_warnings:
         message += ('\nLine numbers are of rebased code, which may not '
             'match the ones in the patch. Warnings may also come from '

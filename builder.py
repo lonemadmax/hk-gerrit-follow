@@ -111,7 +111,7 @@ def _get_msgs(tag, arch):
         return _MASTER_MSGS[arch]
     except KeyError:
         try:
-            with open(join(paths.www('release', config['branch'], tag, arch),
+            with open(join(paths.www_release(config['branch'], tag, arch),
                     'build-messages.json'), 'rt') as f:
                 _MASTER_MSGS[arch] = json.load(f)
         except Exception:
@@ -282,7 +282,7 @@ def build_release():
         # on it when we try to decorate them.
         REPO.create_head(tag, commmit)
 
-    dst = paths.www('release', config['branch'], tag, None)
+    dst = paths.www_release(config['branch'], tag, None)
     os.makedirs(dst, exist_ok=True)
 
     old_tag = db.data['current']
@@ -314,7 +314,7 @@ def build_release():
     for arch in config['arches'].keys():
         if data_master['result'][arch]['ok'] is None:
             data_master['result'][arch]['ok'], log = build(arch, tag)
-            build_dst = paths.www('release', config['branch'], tag, arch)
+            build_dst = paths.www_release(config['branch'], tag, arch)
             os.makedirs(build_dst, exist_ok=True)
             _process_build(paths.build(arch), build_dst, log,
                 config['branch'] + ': ' + tag + ' [' + arch + ']',
@@ -355,7 +355,7 @@ def _build_change(change, build_data, rebased):
     for arch in config['arches'].keys():
         if result[arch]['ok'] is None:
             result[arch]['ok'], log = build(arch, tag)
-            build_dst = paths.www(cid, version, parent, arch, rebased)
+            build_dst = paths.www(change, build_data, arch, rebased)
             os.makedirs(build_dst, exist_ok=True)
             _process_build(paths.build(arch), build_dst, log,
                 cid + ' v' + version + ' on ' + parent + ' [' + arch + ']',
@@ -387,10 +387,10 @@ def build_change(change):
     # except KeyError that should not happen
 
     def _build(commit, cherry):
-        dst = paths.www(cid, build_data['version'], parent, None, not cherry)
+        dst = paths.www(change, build_data, None, not cherry)
         patches_dir = join(dst, 'patches')
         os.makedirs(patches_dir, exist_ok=True)
-        os.symlink(relpath(paths.www('release', config['branch'], parent, None),
+        os.symlink(relpath(paths.www_release(config['branch'], parent, None),
             start=dst), join(dst, 'baseline'))
         patches = gitutils.format_patch(REPO, parent + '..' + commit.hexsha,
             patches_dir)

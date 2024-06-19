@@ -6,38 +6,16 @@
     const text = app.dom.text;
     const textLink = app.dom.textLink;
     const linebreak = app.dom.linebreak;
-
-    function releaseBasePath(tag) {
-        return 'release/master/' + tag;
-    }
-
-    function changesetBasePath(change) {
-        return change.tag;
-    }
-
-    function buildBasePath(build, rebased=true) {
-        const components = [changesetBasePath(build.change)]
-        if (rebased) {
-            components.push(build.version);
-        } else {
-            components.push(build.version + '-sep');
-        }
-        components.push(build.parent.tag);
-        return components.join('/');
-    }
+    const url = app.url;
+    const releasePath = url.local.release;
+    const changePath = url.local.change;
+    const buildPath = url.local.build;
 
     function externalFilePath(build, file, line=0) {
-        // TODO: should escape file?
         if (build.change == build) {
-            const base = 'https://git.haiku-os.org/haiku/tree/' + file
-                + '?id=' + build.commit;
-            if (line) return base + '#n' + line;
-            return base;
+            return url.gitTree(build, file, line);
         } else {
-            const base = 'https://review.haiku-os.org/c/haiku/+/'
-                + build.change.id + '/' + build.version + '/' + file
-            if (line) return base + '#' + line;
-            return base;
+            return url.gerrit(build, file, line);
         }
     }
 
@@ -86,12 +64,11 @@
     function releaseLinkFragment(release) {
         const tag = release.tag;
         const fragment = document.createDocumentFragment();
-        fragment.appendChild(textLink('https://git.haiku-os.org/haiku/tree/?id='
-            + release.commit, tag));
+        fragment.appendChild(textLink(url.gitTree(release), tag));
         if (builds.release[tag]?.result['*'].ok) {
             fragment.appendChild(text(' '));
             fragment.appendChild(compose('small',
-                textLink(releaseBasePath(tag), '[build]')));
+                textLink(releasePath(tag), '[build]')));
         }
         return fragment;
     }
@@ -109,7 +86,7 @@
         }
         Promise.all([app.util.fetchJSON(path + '/build-result.json'),
             build.parent && build.parent.result[arch] !== undefined
-            ? app.util.fetchJSON(releaseBasePath(build.parent.tag)
+            ? app.util.fetchJSON(releasePath(build.parent.tag)
                 + '/' + arch + '/build-result.json')
             : {warnings: {}, errors: {}, messages: [], files: []}])
         .then(values => {
@@ -184,18 +161,13 @@
         // TODO: dirty way to know if we have a release or a changeset
         // TODO: put the common/similar stuff into a prototype
         if (change === build) {
-            fragment.appendChild(textLink(
-                'https://git.haiku-os.org/haiku/commit/?id=' + change.commit,
-                change.title));
-            path = releaseBasePath(tag);
+            fragment.appendChild(textLink(url.gitCommit(change), change.title));
+            path = releasePath(tag);
             lastLine.appendChild(textLink(path, tag));
         } else {
-            fragment.appendChild(textLink(
-                'https://review.haiku-os.org/c/haiku/+/' + change.id
-                    + '/' + build.version,
-                change.title));
-            fragment.appendChild(textLink(changesetBasePath(change), tag));
-            path = buildBasePath(build, rebased);
+            fragment.appendChild(textLink(url.gerrit(build), change.title));
+            fragment.appendChild(textLink(changePath(change), tag));
+            path = buildPath(build, rebased);
             lastLine.appendChild(textLink(path, 'version ' + build.version));
             if (build.picked['*'] !== undefined) {
                 lastLine.appendChild(text(', '
@@ -218,9 +190,9 @@
         fragment.appendChild(compose('pre', text('samp', archData.message)));
         let path;
         if (build === build.change) {
-            path = releaseBasePath(build.tag);
+            path = releasePath(build.tag);
         } else {
-            path = buildBasePath(build, rebased);
+            path = buildPath(build, rebased);
         }
         fragment.appendChild(loadErrorsButton(build, path, arch));
         return fragment;
@@ -343,8 +315,7 @@
         open.appendChild(text('Created: '
             + app.util.timeString(change.time.create)));
         open.appendChild(linebreak());
-        open.appendChild(textLink('https://review.haiku-os.org/c/haiku/+/'
-            + change.id, 'Last version'));
+        open.appendChild(textLink(url.gerrit(change), 'Last version'));
         open.appendChild(text(': ' + app.util.timeString(change.time.version)));
         open.appendChild(linebreak());
         open.appendChild(text('Last update: '
@@ -365,18 +336,16 @@
                 if (res['*'] !== undefined) {
                     const row = document.createElement('tr');
                     row.appendChild(compose('td', textLink(
-                        'https://review.haiku-os.org/c/haiku/+/' + change.id
-                            + '/' + build.version,
-                        build.version)));
+                        url.gerrit(build), build.version)));
                     row.appendChild(compose('td',
                         changesetBuildStateFragment(change.tag, build, res,
                             rebased)));
                     row.appendChild(text('td', rebased
                         ? 'rebased' : 'cherrypicked'));
                     row.appendChild(compose('td', textLink(
-                        releaseBasePath(build.parent.tag), build.parent.tag)));
+                        releasePath(build.parent.tag), build.parent.tag)));
                     row.appendChild(compose('td', textLink(
-                        buildBasePath(build, rebased),
+                        buildPath(build, rebased),
                         app.util.timeString(build.time))));
                     table.appendChild(row);
                 }
@@ -411,7 +380,7 @@
                         app.util.timeString(lastbuild.time)));
                     const parent = lastbuild.parent;
                     const parentCell = compose('td',
-                        textLink(releaseBasePath(parent.tag), parent.tag));
+                        textLink(releasePath(parent.tag), parent.tag));
                         //textLink('#'+parent.tag, parent.tag));
                     parentCell.classList.add('age'+parent.age);
                     tr.appendChild(parentCell);
@@ -425,8 +394,7 @@
                 tr.appendChild(text('td', ''));
             }
             const changeCell = compose('td',
-                textLink('https://review.haiku-os.org/c/haiku/+/' + change.id,
-                    change.title));
+                textLink(url.gerrit(change), change.title));
             changeCell.classList.add(age);
             tr.appendChild(changeCell);
             tr.appendChild(compose('td', tagsRun(change)));

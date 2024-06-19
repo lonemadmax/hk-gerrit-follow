@@ -164,7 +164,7 @@ def _get_msgs(tag, arch):
         return _MASTER_MSGS[arch]
     except KeyError:
         try:
-            with open(join(paths.www('release', config['branch'], tag, arch),
+            with open(join(paths.www_release(config['branch'], tag, arch),
                     'build-messages.json'), 'rt') as f:
                 _MASTER_MSGS[arch] = json.load(f)
         except Exception:
@@ -335,20 +335,19 @@ def parent(build):
     return None
 
 for tag, build in sorted(db.data['release'].items(), key=lambda x: x[1]['time']):
-    base = paths.www('release', config['branch'], tag, None)
+    base = paths.www_release(config['branch'], tag, None)
     process(base, build['result'], parent(build), config['branch'] + ': ' + tag,
         log_analysis.file_link_release(tag))
 
 for group in ('done', 'change'):
     for cid, change in db.data[group].items():
         for build in change['build']:
-            base = paths.www(cid, build['version'], build['parent'], None)
+            base = paths.www(change, build, None)
             title = cid + ' v' + str(build['version']) + ' on ' + build['parent']
             linker = log_analysis.file_link_change(change['id'], build['version'])
             process(base, build['rebased'], parent(build), title, linker)
             if build['picked']:
-                base = paths.www(cid, build['version'], build['parent'], None,
-                    False)
+                base = paths.www(change, build, None, False)
                 process(base, build['picked'], parent(build), title, linker)
 
 print(len(badbefore), '->', len(badafter))

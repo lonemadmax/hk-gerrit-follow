@@ -59,10 +59,7 @@ def _archive(root, path, base=None, comment=None, format='xz'):
 
 def archive(dst, changeset, version, master, full=True):
     src_path = paths.worktree()
-    if dst is None:
-        dst = join(paths.www(changeset, version, master, None, full), 'src')
-    else:
-        dst = join(dst, 'src')
+    dst = join(dst, 'src')
     if not full:
         version += '_sep'
     base = changeset + '_' + version + '-' + master

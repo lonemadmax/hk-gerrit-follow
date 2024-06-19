@@ -25,10 +25,9 @@ def remove_changeset(cid, hrev):
     old = pop_master(change['build'], hrev)
     if old is None:
         raise Exception('Unknown build')
-    rmtree(paths.www(cid, old['version'], hrev, None), ignore_errors=True)
+    rmtree(paths.www(change, old, None), ignore_errors=True)
     if old['picked']:
-        rmtree(paths.www(cid, old['version'], hrev, None, full=False),
-            ignore_errors=True)
+        rmtree(paths.www(change, old, None, full=False), ignore_errors=True)
 
 
 def remove_master(hrev):
@@ -40,11 +39,10 @@ def remove_master(hrev):
         for cid, change in db.data[group].items():
             old = pop_master(change['build'], hrev)
             if old is not None:
-                rmtree(paths.www(cid, old['version'], hrev, None),
-                    ignore_errors=True)
+                rmtree(paths.www(change, old, None), ignore_errors=True)
                 if old['picked']:
-                    rmtree(paths.www(cid, old['version'], hrev, None,
-                        full=False), ignore_errors=True)
+                    rmtree(paths.www(change, old, None, full=False),
+                        ignore_errors=True)
     paths.delete_release(config['branch'], hrev)
     del db.data['release'][hrev]
                 

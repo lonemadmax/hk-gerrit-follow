@@ -36,9 +36,9 @@ for cid in db_cid.intersection(f_cid):
         master = b['parent']
         if master not in db_master:
             print("Unknown release:", cid, master)
-        db_r.add(paths.www(cid, b['version'], master, None))
+        db_r.add(paths.www(change, b, None))
         if b['picked']:
-            db_r.add(paths.www(cid, b['version'], master, None, full=False))
+            db_r.add(paths.www(change, b, None, full=False))
     f_r = set()
     for v in os.listdir(join(paths.www_root(), cid)):
         for m in os.listdir(join(paths.www_root(), cid, v)):
