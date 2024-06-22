@@ -405,10 +405,12 @@ def delete_obsolete_branches(keep=10):
         used = []
         used.append(current_prefix)
         for group in ('change', 'done'):
-            for db_change in db.data[group].values():
-                for build in db_change['build']:
+            try:
+                for build in db.data[group][change.cid]['build']:
                     used.append(build['parent'] + ','
                         + '{:03x}'.format(build['version']))
+            except KeyError:
+                pass
         index[prefix] = (used, [])
     for branch in REPO.heads:
         name = branch.name.split('/')
@@ -420,7 +422,7 @@ def delete_obsolete_branches(keep=10):
                         break
                 else:
                     obsolete.append(branch)
-            except IndexError:
+            except KeyError:
                 pass
     delete = []
     if keep:
