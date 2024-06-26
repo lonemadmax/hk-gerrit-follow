@@ -30,7 +30,7 @@
         // TODO: should escape file?
         if (build.change == build) {
             const base = 'https://git.haiku-os.org/haiku/tree/' + file
-                + '?id=' + build.tag;
+                + '?id=' + build.commit;
             if (line) return base + '#n' + line;
             return base;
         } else {
@@ -83,10 +83,11 @@
         return fragment;
     }
 
-    function releaseLinkFragment(tag) {
+    function releaseLinkFragment(release) {
+        const tag = release.tag;
         const fragment = document.createDocumentFragment();
-        fragment.appendChild(textLink('https://git.haiku-os.org/haiku/tree/?h='
-            + tag, tag));
+        fragment.appendChild(textLink('https://git.haiku-os.org/haiku/tree/?id='
+            + release.commit, tag));
         if (builds.release[tag]?.result['*'].ok) {
             fragment.appendChild(text(' '));
             fragment.appendChild(compose('small',
@@ -184,7 +185,8 @@
         // TODO: put the common/similar stuff into a prototype
         if (change === build) {
             fragment.appendChild(textLink(
-                'https://git.haiku-os.org/haiku/tree/?h=' + tag, change.title));
+                'https://git.haiku-os.org/haiku/commit/?id=' + change.commit,
+                change.title));
             path = releaseBasePath(tag);
             lastLine.appendChild(textLink(path, tag));
         } else {
@@ -315,7 +317,7 @@
         // TODO: appendTo -> replace?
         app.dom.appendTo('lastupdate', text(app.util.timeString(builds.time)));
         const release = builds.sortedReleases[0];
-        app.dom.appendTo('lastrevision', releaseLinkFragment(release.tag));
+        app.dom.appendTo('lastrevision', releaseLinkFragment(release));
         app.dom.appendTo('lastsubject', text(release.title));
         app.dom.appendTo('laststatus', releaseStateFragment(release));
     }
@@ -323,10 +325,9 @@
     function releaseTable() {
         const fragment = document.createDocumentFragment();
         for (const release of builds.sortedReleases) {
-            const tag = release.tag;
             const tr = document.createElement('tr');
-            tr.setAttribute('id', tag);
-            tr.appendChild(compose('td', releaseLinkFragment(tag)));
+            tr.setAttribute('id', release.tag);
+            tr.appendChild(compose('td', releaseLinkFragment(release)));
             tr.appendChild(compose('td', releaseStateFragment(release)));
             tr.appendChild(compose('td', text(release.title)));
             tr.classList.add('age' + release.age);
