@@ -291,28 +291,6 @@ class Change:
                 sets.append(candidate_set)
         return chains
 
-    def check_rebased_branch(self):
-        if self._state < Change._REBASED:
-            return
-        chain = []
-        for commit in gitutils.history(self.base, self.rebased, REPO)[:-1]:
-            cid = self._get_cid(commit)
-            try:
-                change = changes[cid]
-            except KeyError:
-                # TODO: it'd be nice if we hinted the builder that this is
-                # now as if the change had a new version. Also in the other
-                # case down here and for all children when a change is deleted.
-                self._downgrade(Change._PICKED)
-                return
-            if change.rebase != commit:
-                self._downgrade(Change._PICKED)
-                return
-            chain.append(cid)
-        if chain != self.active_chain():
-            self._downgrade(Change._PICKED)
-            return
-
 
 def changeid(commit):
     cid = None
