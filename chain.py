@@ -180,14 +180,14 @@ class Change:
         if self.fetch() is None:
             return (None, None)
         try:
-            return (REPO.heads[branch_name].commit, None)
+            return (REPO.heads[branch_name].commit, [])
         except IndexError:
             pass
         branch = REPO.create_head(branch_name, base)
         branch.checkout(force=True)
         try:
             REPO.git.cherry_pick(self.fetched)
-            return (REPO.heads[branch_name].commit, None)
+            return (REPO.heads[branch_name].commit, [])
         except:
             conflicts = list(REPO.index.unmerged_blobs())
             REPO.git.cherry_pick(abort=True)
