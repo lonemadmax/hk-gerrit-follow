@@ -369,9 +369,6 @@
             let age = 'age1';
             let current = false;
             if (change.build.length > 0) {
-                if (change.build.length > 1) {
-                    expandCell.appendChild(changesetBuildsTable(change));
-                }
                 const lastbuild = change.build[0];
                 if (lastbuild.version == change.version) {
                     age = 'age0';
@@ -386,6 +383,9 @@
                     tr.appendChild(parentCell);
                     tr.appendChild(compose('td',
                         changesetStateFragment(k, lastbuild)));
+                }
+                if (change.build.length > 1 || !current) {
+                    expandCell.appendChild(changesetBuildsTable(change));
                 }
             }
             if (!current) {
