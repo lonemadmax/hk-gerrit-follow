@@ -31,13 +31,15 @@ class Change:
     _CONFLICT        = 50 # Conflict "rebasing" to master
     _REBASED         = 60 # "Rebased" to master
 
-    def __init__(self, change, base=_base_commit):
+    def __init__(self, change, base=None):
         self.cid = change.cid
         self.number = change['id']
         self.version = change['version']
         self.branch = change.branch
         self.ref = change['ref']
         self.remote = change.remote
+        if base is None:
+            base = _base_commit
         self.base = base
         self.rebased_conflicting = None
         self.rebased_conflicts = []
@@ -77,7 +79,9 @@ class Change:
             _hexsha_to_cid[hexsha] = cid
             return cid
 
-    def update(self, change=None, base=_base_commit):
+    def update(self, change=None, base=None):
+        if base is None:
+            base = _base_commit
         if change is not None:
             if self.cid != change.cid:
                 raise Exception("updated with different cid: "
