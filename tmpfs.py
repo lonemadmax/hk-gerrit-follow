@@ -24,13 +24,14 @@ def preferred_root():
 def link_temp_dir(name):
     d = preferred_root()
     d = tempfile.TemporaryDirectory(dir=d)
-    os.symlink(d, name)
+    os.symlink(d.name, name)
     _keepalive[name] = d
 
 
 def free(name):
     try:
         del _keepalive[name]
+        os.remove(name)
     except KeyError:
         pass
 
