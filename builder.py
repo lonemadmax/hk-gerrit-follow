@@ -280,7 +280,7 @@ def build_release():
         # db.data['release'][tag]['commit']), just make a branch off of it.
         # We don't want a tag so that other tagless commits are not based
         # on it when we try to decorate them.
-        REPO.create_head(tag, commmit)
+        REPO.create_head(tag, commit)
 
     dst = paths.www_release(config['branch'], tag, None)
     os.makedirs(dst, exist_ok=True)
